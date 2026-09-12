@@ -108,3 +108,13 @@ export function wowheadDataAttr(itemId: number, bonusIds?: readonly number[], mo
   if (stats.length > 0) parts.push(`crafted-stats=${stats.join(':')}`)
   return parts.join('&')
 }
+
+/**
+ * Undermine Exchange page for an item on a realm. Their router reads
+ * `#<region>-<realm slug>/<item id>[-<item level>]`; any realm of a connected-realm group
+ * selects that group's auction house, and the item level picks the exact variant.
+ */
+export function undermineExchangeUrl(region: string, realmSlug: string, itemId: number, itemLevel?: number): string {
+  const variant = itemLevel && itemLevel > 0 ? `-${itemLevel}` : ''
+  return `https://undermine.exchange/#${region.toLowerCase()}-${realmSlug}/${itemId}${variant}`
+}

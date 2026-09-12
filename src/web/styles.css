@@ -565,6 +565,16 @@ table.results tr.stale td {
   font-size: 12px;
 }
 
+.item-cell .slot a.ext {
+  color: var(--text-faint);
+  font-weight: 400;
+  text-decoration: underline dotted;
+}
+
+.item-cell .slot a.ext:hover {
+  color: var(--accent-strong);
+}
+
 .ilvl {
   font-weight: 600;
 }

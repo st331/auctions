@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { auctionsUrl, extractSeasonAuctions, parseConnectedRealmId, regionConfig, wowheadDataAttr, wowheadItemUrl } from './blizzard.ts'
+import { auctionsUrl, extractSeasonAuctions, parseConnectedRealmId, regionConfig, undermineExchangeUrl, wowheadDataAttr, wowheadItemUrl } from './blizzard.ts'
 
 describe('blizzard helpers', () => {
   it('builds namespaced urls', () => {
@@ -27,6 +27,11 @@ describe('blizzard helpers', () => {
     )
     expect(out).toEqual([{ id: 1, cr: 3676, item: 271444, buyout: 5000000, b: [12841, 41], m: [[29, 32], [30, 36]], tl: 'LONG' }])
     expect(extractSeasonAuctions({}, 1, items)).toEqual([])
+  })
+  it('builds Undermine Exchange links', () => {
+    expect(undermineExchangeUrl('eu', 'silvermoon', 271441, 318)).toBe('https://undermine.exchange/#eu-silvermoon/271441-318')
+    expect(undermineExchangeUrl('US', 'tarren-mill', 271638)).toBe('https://undermine.exchange/#us-tarren-mill/271638')
+    expect(undermineExchangeUrl('eu', 'kazzak', 271441, 0)).toBe('https://undermine.exchange/#eu-kazzak/271441')
   })
   it('builds wowhead links', () => {
     expect(wowheadItemUrl(271444, [12841, 41], [[29, 32], [30, 36]])).toBe('https://www.wowhead.com/item=271444?bonus=12841:41&crafted-stats=32:36')

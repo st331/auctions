@@ -85,7 +85,9 @@ From then on a scan runs about every **10 minutes**. Notes:
   mean "any of these".
 * **Socket**, **Max buyout** (gold), **Realms** (multi-select) and column sorting work as you would expect. Filters are
   written to the URL, so a filtered view can be bookmarked or shared, and are remembered between visits.
-* Hover an item name for the **Wowhead tooltip** of that exact variant.
+* Click an item name to open it on **Undermine Exchange** for that realm and item level (price history and the
+  realm's other listings); hover it for the **Wowhead tooltip** of that exact variant, or use the small *wowhead*
+  link under the name.
 
 ### Real-time verification
 

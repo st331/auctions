@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { wowheadDataAttr, wowheadItemUrl } from '../../shared/blizzard.ts'
+import { undermineExchangeUrl, wowheadDataAttr, wowheadItemUrl } from '../../shared/blizzard.ts'
 import { formatCopperExact, formatGold, statLabel } from '../../shared/decode.ts'
 import type { DecodedAuction, SortKey, SortSpec } from '../../shared/filters.ts'
 import { CURRENT_SEASON, seasonItemMap } from '../../shared/season.ts'
@@ -91,11 +91,21 @@ export function ResultsTable({ rows, total, sort, onSort, regionData, region, bu
                   <div className="item-cell">
                     <img src={itemIconUrl(a.item)} alt="" loading="lazy" />
                     <div>
-                      <a href={wowheadItemUrl(a.item, a.b, a.m, region ?? undefined)} data-wowhead={wowheadDataAttr(a.item, a.b, a.m)} target="_blank" rel="noreferrer">
+                      <a
+                        href={realm?.slugs[0] && region ? undermineExchangeUrl(region, realm.slugs[0], a.item, d.ilvl) : wowheadItemUrl(a.item, a.b, a.m, region ?? undefined)}
+                        data-wowhead={wowheadDataAttr(a.item, a.b, a.m)}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={realm ? `Open on Undermine Exchange (${realm.names[0]})` : undefined}
+                      >
                         {item?.name ?? `Item ${a.item}`}
                       </a>
                       <div className="slot">
                         {item?.category.label} · {item?.slot}
+                        {' · '}
+                        <a className="ext" href={wowheadItemUrl(a.item, a.b, a.m, region ?? undefined)} target="_blank" rel="noreferrer" title="Open on Wowhead">
+                          wowhead
+                        </a>
                       </div>
                     </div>
                   </div>
