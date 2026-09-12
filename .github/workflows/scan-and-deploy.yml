@@ -2,13 +2,16 @@
 # and publishes the site + fresh data to GitHub Pages.
 #
 # Required repository secrets:  BLIZZARD_CLIENT_ID, BLIZZARD_CLIENT_SECRET
-# Optional repository variables: REGIONS (default "us,eu"), SCAN_CONCURRENCY (default 6)
+# Optional repository variables: REGIONS (default "us,eu"), SCAN_CONCURRENCY (default 6),
+#                                 SCAN_INTERVAL_SECONDS (default 600)
 name: Scan auctions and deploy
 
 on:
   schedule:
-    # Every 30 minutes. GitHub may delay or skip scheduled runs when it is busy.
-    - cron: '*/30 * * * *'
+    # Backstop only: GitHub throttles scheduled workflows heavily (runs were firing every ~3 h
+    # with a */30 schedule), so each run also dispatches the next one itself 10 minutes after
+    # it started (see the last step). Off-peak minutes are used because :00/:30 are congested.
+    - cron: '4,14,24,34,44,54 * * * *'
   push:
   workflow_dispatch:
     inputs:
@@ -21,6 +24,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write # lets a run dispatch the next one
 
 # Never run two scans/deploys at the same time; a newer queued run replaces older queued ones.
 concurrency:
@@ -45,6 +49,7 @@ jobs:
           CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
         run: |
+          echo "started=$(date +%s)" >> "$GITHUB_OUTPUT"
           if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
             echo "::warning title=Blizzard API secrets missing::Add BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET under Settings > Secrets and variables > Actions, then re-run this workflow. Nothing was scanned or deployed."
             echo "configured=false" >> "$GITHUB_OUTPUT"
@@ -106,3 +111,22 @@ jobs:
         if: steps.config.outputs.configured == 'true'
         id: deployment
         uses: actions/deploy-pages@v5
+
+      # Self-scheduling: wait until SCAN_INTERVAL_SECONDS (default 600) after this run started,
+      # then queue the next run. The concurrency group keeps at most one run pending, so the
+      # cron backstop and this chain never pile up. Pushes do not chain (the running chain continues).
+      - name: Schedule the next scan
+        if: steps.config.outputs.configured == 'true' && github.event_name != 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STARTED: ${{ steps.config.outputs.started }}
+          INTERVAL: ${{ vars.SCAN_INTERVAL_SECONDS || '600' }}
+        run: |
+          elapsed=$(( $(date +%s) - STARTED ))
+          wait=$(( INTERVAL - elapsed ))
+          if [ "$wait" -gt 0 ]; then
+            echo "Scan took ${elapsed}s; waiting ${wait}s before queuing the next run"
+            sleep "$wait"
+          fi
+          gh workflow run scan-and-deploy.yml --ref "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY"
+          echo "Next run queued"
