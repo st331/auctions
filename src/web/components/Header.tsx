@@ -10,9 +10,22 @@ interface Props {
   onRegion: (region: string) => void
   hasCredentials: boolean
   onOpenSettings: () => void
+  onRefresh: () => void
+  refreshing: boolean
 }
 
-export function Header({ index, regionData, region, onRegion, hasCredentials, onOpenSettings }: Props) {
+/** Blizzard's snapshot time for the region: realms of a region share one hourly snapshot, so show the newest. */
+function snapshotTime(regionData: RegionData | null): string | undefined {
+  let newest = 0
+  for (const r of Object.values(regionData?.realms ?? {})) {
+    const t = r.lastModified ? new Date(r.lastModified).getTime() : 0
+    if (t > newest) newest = t
+  }
+  return newest > 0 ? new Date(newest).toISOString() : undefined
+}
+
+export function Header({ index, regionData, region, onRegion, hasCredentials, onOpenSettings, onRefresh, refreshing }: Props) {
+  const snapshot = snapshotTime(regionData)
   const regions = index?.regions ?? []
   const stats = regionData?.stats
   const problems = (regionData?.errors?.length ?? 0) > 0
@@ -44,7 +57,15 @@ export function Header({ index, regionData, region, onRegion, hasCredentials, on
       {regionData && (
         <span className="status" title={title}>
           {problems ? '⚠' : '●'} Scanned {formatRelative(regionData.generatedAt)}
+          {snapshot && (
+            <span className="faint" title="Blizzard publishes a new auction-house snapshot per region roughly once an hour; this is the snapshot the listings come from">
+              · Blizzard snapshot {formatTime(snapshot)} ({formatRelative(snapshot)})
+            </span>
+          )}
           {regionData.tokenPrice ? <span className="faint">· Token {Math.round(regionData.tokenPrice / 10000).toLocaleString('en-US')}g</span> : null}
+          <button className="btn small" onClick={onRefresh} disabled={refreshing} title="Check for a newer scan now (the page also checks every minute)">
+            {refreshing ? <span className="spinner" /> : '↻'}
+          </button>
         </span>
       )}
       <button className="btn small" onClick={onOpenSettings} title="Blizzard API credentials for real-time verification">

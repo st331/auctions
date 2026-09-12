@@ -38,6 +38,16 @@ export function App() {
   const [liveRealms, setLiveRealms] = useState<Map<number, LiveRealm>>(new Map())
   const [verifyResults, setVerifyResults] = useState<Map<string, VerifyResult>>(new Map())
   const [banner, setBanner] = useState<Banner | null>(null)
+  /** Incremented when a newer scan is detected; forces the region data to reload. */
+  const [dataVersion, setDataVersion] = useState(0)
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  // Re-render every 30 s so "x min ago" labels stay honest.
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30_000)
+    return () => clearInterval(id)
+  }, [])
 
   // ---- initial load: index + bonus table
   useEffect(() => {
@@ -65,7 +75,7 @@ export function App() {
     }
   }, [])
 
-  // ---- load region data whenever the region changes
+  // ---- load region data whenever the region changes or a newer scan was published
   useEffect(() => {
     if (!view.region || !bonusTable) return
     let cancelled = false
@@ -74,7 +84,10 @@ export function App() {
       try {
         const data = await loadRegion(view.region as string)
         if (cancelled) return
-        setRegionData(data)
+        setRegionData((prev) => {
+          if (prev && prev.region === data.region && prev.generatedAt !== data.generatedAt) setUpdatedAt(data.generatedAt)
+          return data
+        })
         setAuctions(decodeAuctions(data.auctions, bonusTable))
         setLiveRealms(new Map())
         setVerifyResults(new Map())
@@ -88,7 +101,35 @@ export function App() {
     return () => {
       cancelled = true
     }
-  }, [view.region, bonusTable])
+  }, [view.region, bonusTable, dataVersion])
+
+  // ---- poll for newer scans: every minute, when the tab becomes visible again, and on demand.
+  // An open tab would otherwise keep showing the data it loaded hours ago.
+  const checkForUpdates = useCallback(async () => {
+    if (!view.region) return
+    setRefreshing(true)
+    try {
+      const idx = await loadIndex()
+      setIndex(idx)
+      const entry = idx.regions.find((r) => r.region === view.region)
+      if (entry && (!regionData || entry.generatedAt !== regionData.generatedAt)) setDataVersion((v) => v + 1)
+    } catch {
+      // transient network problem; the next poll will try again
+    } finally {
+      setRefreshing(false)
+    }
+  }, [view.region, regionData])
+  useEffect(() => {
+    const id = setInterval(() => void checkForUpdates(), 60_000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void checkForUpdates()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [checkForUpdates])
 
   useEffect(() => {
     persistState(view)
@@ -198,7 +239,16 @@ export function App() {
   if (loadError && !regionData) {
     return (
       <div className="app">
-        <Header index={index} regionData={null} region={view.region} onRegion={() => {}} hasCredentials={!!credentials} onOpenSettings={() => setSettingsOpen(true)} />
+        <Header
+          index={index}
+          regionData={null}
+          region={view.region}
+          onRegion={() => {}}
+          hasCredentials={!!credentials}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onRefresh={() => void checkForUpdates()}
+          refreshing={refreshing}
+        />
         <div className="banner bad">
           <div>
             <strong>Could not load auction data.</strong> {loadError}
@@ -225,6 +275,8 @@ export function App() {
           setSettingsHint(null)
           setSettingsOpen(true)
         }}
+        onRefresh={() => void checkForUpdates()}
+        refreshing={refreshing || loading}
       />
 
       {loading && !regionData ? (
@@ -250,6 +302,24 @@ export function App() {
                 <button className="close" onClick={() => setBanner(null)} aria-label="Dismiss">
                   ×
                 </button>
+              </div>
+            )}
+            {updatedAt && (
+              <div className="banner ok">
+                <span>↻</span>
+                <span>Newer scan loaded automatically ({formatTime(updatedAt)}). Your filters were kept.</span>
+                <button className="close" onClick={() => setUpdatedAt(null)} aria-label="Dismiss">
+                  ×
+                </button>
+              </div>
+            )}
+            {regionData && Date.now() - new Date(regionData.generatedAt).getTime() > 45 * 60_000 && (
+              <div className="banner warn">
+                <span>⚠</span>
+                <span>
+                  The last scan finished {formatRelative(regionData.generatedAt)}; the scanner should publish every ~10 minutes, so listings may be out of date.
+                  Check the "Scan auctions and deploy" workflow on the repository's Actions tab.
+                </span>
               </div>
             )}
             {(regionData?.errors?.length ?? 0) > 0 && (
