@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import { SECONDARY_STAT_IDS, STAT_IDS, TERTIARY_STAT_IDS, type CompactBonusTable } from './bonuses.ts'
-import { CURRENT_SEASON, difficultyForIlvl, difficultyForTrack, type DifficultyKey, type SeasonConfig } from './season.ts'
+import { CURRENT_SEASON, difficultyForIlvl, difficultyForTagBonus, difficultyForTrack, type DifficultyKey, type SeasonConfig } from './season.ts'
 
 /** Item modifier types that carry the item's secondary stats (see warcraft.wiki.gg/wiki/ItemLink). */
 export const MODIFIER_STAT_MAJOR = 29
@@ -118,8 +118,11 @@ export function decodeItem(input: DecodeInput, table: CompactBonusTable, season:
   modSecondaries.sort((a, b) => a.type - b.type)
   const secondaries = dedupe(modSecondaries.length > 0 ? modSecondaries.map((m) => m.value) : (bonusSecondaries ?? []))
 
+  // Difficulty: upgrade track name, then Raidbots' difficulty tag, then the season's known tag
+  // bonus ids, then the item level bands as a last resort.
   let difficulty: DifficultyKey | undefined = difficultyForTrack(track?.name, season)?.key
   if (!difficulty && tag) difficulty = difficultyFromTag(tag)
+  if (!difficulty) difficulty = difficultyForTagBonus(bonusIds, season)?.key
   if (!difficulty && ilvl > 0) difficulty = difficultyForIlvl(ilvl, season)?.key
 
   const out: DecodedItem = { ilvl, socket, secondaries }
@@ -156,11 +159,22 @@ function dedupe(values: number[]): number[] {
   return out
 }
 
-/** Gold value (floored) of an amount in copper. */
+/**
+ * Gold value of an amount in copper, rounded to the nearest gold (the same convention WoWPay2Win
+ * uses, so prices read identically on both sites). Filtering always compares raw copper.
+ */
 export function copperToGold(copper: number): number {
-  return Math.floor(copper / 10000)
+  return Math.round(copper / 10000)
 }
 
 export function formatGold(copper: number): string {
   return `${copperToGold(copper).toLocaleString('en-US')}g`
+}
+
+/** Exact "123g 45s 67c" breakdown for tooltips. */
+export function formatCopperExact(copper: number): string {
+  const gold = Math.floor(copper / 10000)
+  const silver = Math.floor((copper % 10000) / 100)
+  const c = copper % 100
+  return `${gold.toLocaleString('en-US')}g ${silver}s ${c}c`
 }

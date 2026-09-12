@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { wowheadDataAttr, wowheadItemUrl } from '../../shared/blizzard.ts'
-import { formatGold, statLabel } from '../../shared/decode.ts'
+import { formatCopperExact, formatGold, statLabel } from '../../shared/decode.ts'
 import type { DecodedAuction, SortKey, SortSpec } from '../../shared/filters.ts'
 import { CURRENT_SEASON, seasonItemMap } from '../../shared/season.ts'
 import type { RegionData } from '../../shared/types.ts'
@@ -126,7 +126,9 @@ export function ResultsTable({ rows, total, sort, onSort, regionData, region, bu
                   {d.tertiary !== undefined && <span className="badge tert">{statLabel(d.tertiary)}</span>}
                   {!d.socket && d.tertiary === undefined && <span className="faint">—</span>}
                 </td>
-                <td className="price">{formatGold(a.buyout)}</td>
+                <td className="price" title={formatCopperExact(a.buyout)}>
+                  {formatGold(a.buyout)}
+                </td>
                 <td title={realm?.names.join(' / ')}>
                   {realm ? realmShortLabel(realm.names) : `Realm ${a.cr}`}
                   {realm?.stale && (

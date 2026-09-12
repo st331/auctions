@@ -44,6 +44,11 @@ export interface SeasonConfig {
   /** Blizzard's item level "squish era" for this expansion; used to interpret set-level bonuses. */
   squishEra: number
   difficulties: DifficultyConfig[]
+  /**
+   * Difficulty "tag" bonus ids Blizzard attaches to raid drops this season (fallback when the
+   * upgrade-track bonus is unknown to the bonus table). Optional.
+   */
+  difficultyTagBonusIds?: Partial<Record<DifficultyKey, number[]>>
   categories: SeasonCategory[]
 }
 
@@ -59,6 +64,8 @@ export const CURRENT_SEASON: SeasonConfig = {
     { key: 'heroic', label: 'Heroic', track: 'Hero', ilvl: 305 },
     { key: 'mythic', label: 'Mythic', track: 'Myth', ilvl: 318 },
   ],
+  // Observed on live auctions of The Venomous Abyss (13333 carries no label in Raidbots' data).
+  difficultyTagBonusIds: { lfr: [13332], normal: [13333], heroic: [13334], mythic: [13335] },
   categories: [
     {
       id: 'plate',
@@ -120,6 +127,17 @@ export function seasonItemMap(season: SeasonConfig = CURRENT_SEASON): Map<number
 
 export function seasonItemIds(season: SeasonConfig = CURRENT_SEASON): Set<number> {
   return new Set(seasonItems(season).map((i) => i.id))
+}
+
+/** Difficulty whose known tag bonus id appears in the bonus list, if the season declares any. */
+export function difficultyForTagBonus(bonusIds: readonly number[], season: SeasonConfig = CURRENT_SEASON): DifficultyConfig | undefined {
+  const tags = season.difficultyTagBonusIds
+  if (!tags) return undefined
+  for (const d of season.difficulties) {
+    const ids = tags[d.key]
+    if (ids && bonusIds.some((b) => ids.includes(b))) return d
+  }
+  return undefined
 }
 
 export function difficultyForTrack(track: string | undefined, season: SeasonConfig = CURRENT_SEASON): DifficultyConfig | undefined {

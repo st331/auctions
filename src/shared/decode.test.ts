@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import fs from 'node:fs'
 import { compactBonusTable, type CompactBonusTable, type RaidbotsBonus } from './bonuses.ts'
-import { decodeItem, formatGold } from './decode.ts'
+import { decodeItem, formatCopperExact, formatGold } from './decode.ts'
 import { CURRENT_SEASON } from './season.ts'
 
 const vendored = JSON.parse(fs.readFileSync(new URL('./vendor/bonuses.compact.json', import.meta.url), 'utf8')) as CompactBonusTable
@@ -57,6 +57,13 @@ describe('decodeItem (Midnight Season 2 raid gear)', () => {
     expect(decodeItem({ itemId: item, bonusIds: [12854], baseIlvl: 219 }, vendored)).toMatchObject({ ilvl: 334, difficulty: 'mythic', track: { name: 'Myth', level: 6, max: 6 } })
   })
 
+  it("uses the season's known difficulty tag bonus ids when the track bonus is unknown", () => {
+    // 13333 (Normal) has no label in Raidbots' data; 99999 stands in for an upgrade bonus the table does not know yet.
+    const d = decodeItem({ itemId: item, bonusIds: [13333, 99999], baseIlvl: 219 }, vendored)
+    expect(d.difficulty).toBe('normal')
+    expect(decodeItem({ itemId: item, bonusIds: [13335, 99999], baseIlvl: 219 }, vendored).difficulty).toBe('mythic')
+  })
+
   it('falls back to stat bonus ids for secondaries on older-style items', () => {
     const d = decodeItem({ itemId: item, bonusIds: [1676, 43], baseIlvl: 219 }, vendored)
     expect(d.secondaries).toEqual([32, 40])
@@ -88,9 +95,12 @@ describe('decodeItem (Midnight Season 2 raid gear)', () => {
     expect(decodeItem({ itemId: item, bonusIds: [], baseIlvl: 219 }, table, CURRENT_SEASON).difficulty).toBeUndefined()
   })
 
-  it('formats gold', () => {
-    expect(formatGold(1234567890)).toBe('123,456g')
-    expect(formatGold(9999)).toBe('0g')
+  it('formats gold rounded to the nearest gold, with an exact breakdown available', () => {
+    expect(formatGold(1234567890)).toBe('123,457g')
+    expect(formatGold(1234540000)).toBe('123,454g')
+    expect(formatGold(9999)).toBe('1g')
+    expect(formatGold(4999)).toBe('0g')
+    expect(formatCopperExact(1234567890)).toBe('123,456g 78s 90c')
   })
 })
 
