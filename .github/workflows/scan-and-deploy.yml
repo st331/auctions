@@ -37,33 +37,55 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # Until the Blizzard API secrets exist the job stops here (successfully, so the schedule
+      # does not send a failure e-mail every 30 minutes) and prints a warning instead.
+      - name: Check configuration
+        id: config
+        env:
+          CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+        run: |
+          if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
+            echo "::warning title=Blizzard API secrets missing::Add BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET under Settings > Secrets and variables > Actions, then re-run this workflow. Nothing was scanned or deployed."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check out
+        if: steps.config.outputs.configured == 'true'
         uses: actions/checkout@v6
 
       - name: Set up Node.js
+        if: steps.config.outputs.configured == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
 
       - name: Install dependencies
+        if: steps.config.outputs.configured == 'true'
         run: npm ci
 
       - name: Unit tests
+        if: steps.config.outputs.configured == 'true'
         run: npm test
 
       - name: Configure GitHub Pages
+        if: steps.config.outputs.configured == 'true'
         id: pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
 
       - name: Build site
+        if: steps.config.outputs.configured == 'true'
         run: npm run build
         env:
           BASE_PATH: ${{ steps.pages.outputs.base_path }}/
 
       - name: Scan auction houses
+        if: steps.config.outputs.configured == 'true'
         run: npm run scan -- --out dist/data
         env:
           BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
@@ -75,10 +97,12 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=4096
 
       - name: Upload Pages artifact
+        if: steps.config.outputs.configured == 'true'
         uses: actions/upload-pages-artifact@v4
         with:
           path: dist
 
       - name: Deploy to GitHub Pages
+        if: steps.config.outputs.configured == 'true'
         id: deployment
         uses: actions/deploy-pages@v4
