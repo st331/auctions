@@ -13,6 +13,15 @@ interface Props {
   regionData: RegionData | null
   itemCounts: Map<number, number>
   realmCounts: Map<number, number>
+  /** Item levels reachable on each difficulty track this season, ascending. */
+  levelsByDifficulty: Record<DifficultyKey, number[]>
+}
+
+function levelsFor(levelsByDifficulty: Record<DifficultyKey, number[]>, difficulties: DifficultyKey[]): number[] {
+  const keys = difficulties.length > 0 ? difficulties : (Object.keys(levelsByDifficulty) as DifficultyKey[])
+  const set = new Set<number>()
+  for (const k of keys) for (const l of levelsByDifficulty[k] ?? []) set.add(l)
+  return [...set].sort((a, b) => a - b)
 }
 
 const BUYOUT_PRESETS = [50_000, 100_000, 250_000, 500_000, 1_000_000]
@@ -21,9 +30,30 @@ function formatShortGold(g: number): string {
   return g >= 1_000_000 ? `${g / 1_000_000}M` : `${g / 1000}k`
 }
 
-export function FiltersPanel({ filters, onChange, onReset, regionData, itemCounts, realmCounts }: Props) {
-  const toggleDifficulty = (key: DifficultyKey) =>
-    onChange({ difficulties: filters.difficulties.includes(key) ? filters.difficulties.filter((d) => d !== key) : [...filters.difficulties, key] })
+export function FiltersPanel({ filters, onChange, onReset, regionData, itemCounts, realmCounts, levelsByDifficulty }: Props) {
+  // Only offer the item levels of the selected difficulty tracks (all tracks when none is selected).
+  const ilvlOptions = levelsFor(levelsByDifficulty, filters.difficulties)
+  const lowestIlvl = ilvlOptions[0] ?? null
+  const highestIlvl = ilvlOptions[ilvlOptions.length - 1] ?? null
+  // The drop-downs always show a concrete level; the season's bounds mean "no limit" in the filter model.
+  const setIlvlMin = (value: number) => {
+    const min = value === lowestIlvl ? null : value
+    const max = filters.ilvlMax !== null && filters.ilvlMax < value ? null : filters.ilvlMax
+    onChange({ ilvlMin: min, ilvlMax: max })
+  }
+  const setIlvlMax = (value: number) => {
+    const max = value === highestIlvl ? null : value
+    const min = filters.ilvlMin !== null && filters.ilvlMin > value ? null : filters.ilvlMin
+    onChange({ ilvlMin: min, ilvlMax: max })
+  }
+  const toggleDifficulty = (key: DifficultyKey) => {
+    const difficulties = filters.difficulties.includes(key) ? filters.difficulties.filter((d) => d !== key) : [...filters.difficulties, key]
+    // Drop level bounds that the new track selection can no longer offer.
+    const options = levelsFor(levelsByDifficulty, difficulties)
+    const ilvlMin = filters.ilvlMin !== null && options.includes(filters.ilvlMin) && filters.ilvlMin !== options[0] ? filters.ilvlMin : null
+    const ilvlMax = filters.ilvlMax !== null && options.includes(filters.ilvlMax) && filters.ilvlMax !== options[options.length - 1] ? filters.ilvlMax : null
+    onChange({ difficulties, ilvlMin, ilvlMax })
+  }
   const toggleTertiary = (id: number) =>
     onChange({ tertiaries: filters.tertiaries.includes(id) ? filters.tertiaries.filter((t) => t !== id) : [...filters.tertiaries, id] })
   const numberOrNull = (v: string) => (v.trim() === '' ? null : Math.max(0, Math.floor(Number(v))) || null)
@@ -65,14 +95,31 @@ export function FiltersPanel({ filters, onChange, onReset, regionData, itemCount
         <div className="row" style={{ marginTop: 10 }}>
           <div className="field">
             <label>Min ilvl</label>
-            <input type="number" min={0} placeholder="any" value={filters.ilvlMin ?? ''} onChange={(e) => onChange({ ilvlMin: numberOrNull(e.target.value) })} />
+            <select value={filters.ilvlMin ?? lowestIlvl ?? ''} onChange={(e) => setIlvlMin(Number(e.target.value))} disabled={ilvlOptions.length === 0}>
+              {ilvlOptions.map((lvl) => (
+                <option key={lvl} value={lvl}>
+                  {lvl}
+                  {lvl === lowestIlvl ? ' (lowest)' : ''}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="field">
             <label>Max ilvl</label>
-            <input type="number" min={0} placeholder="any" value={filters.ilvlMax ?? ''} onChange={(e) => onChange({ ilvlMax: numberOrNull(e.target.value) })} />
+            <select value={filters.ilvlMax ?? highestIlvl ?? ''} onChange={(e) => setIlvlMax(Number(e.target.value))} disabled={ilvlOptions.length === 0}>
+              {ilvlOptions.map((lvl) => (
+                <option key={lvl} value={lvl}>
+                  {lvl}
+                  {lvl === highestIlvl ? ' (highest)' : ''}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
-        <p className="hint">Difficulty chips match the item's upgrade track (LFR = Veteran, Normal = Champion, Heroic = Hero, Mythic = Myth). Select several to combine them.</p>
+        <p className="hint">
+          Difficulty chips match the item's upgrade track (LFR = Veteran, Normal = Champion, Heroic = Hero, Mythic = Myth) and can be combined. The
+          level drop-downs list the upgrade steps of the selected tracks (all tracks when none is selected).
+        </p>
       </div>
 
       <div className="card">

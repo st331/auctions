@@ -3,7 +3,7 @@ import { extractSeasonAuctions } from '../shared/blizzard.ts'
 import type { CompactBonusTable } from '../shared/bonuses.ts'
 import { formatGold } from '../shared/decode.ts'
 import { DEFAULT_FILTERS, applyFilters, sortAuctions, type DecodedAuction, type Filters, type SortKey } from '../shared/filters.ts'
-import { CURRENT_SEASON, seasonItemIds, seasonItems } from '../shared/season.ts'
+import { CURRENT_SEASON, seasonItemIds, seasonItems, seasonTrackLevels, type DifficultyKey } from '../shared/season.ts'
 import type { DataIndex, RegionData } from '../shared/types.ts'
 import { FiltersPanel } from './components/FiltersPanel.tsx'
 import { Header } from './components/Header.tsx'
@@ -127,6 +127,17 @@ export function App() {
     for (const a of applyFilters(auctions, { ...view.filters, realms: null })) m.set(a.cr, (m.get(a.cr) ?? 0) + 1)
     return m
   }, [auctions, view.filters])
+  // Item levels per difficulty: the track's upgrade steps plus whatever the scan actually observed.
+  const levelsByDifficulty = useMemo(() => {
+    const byTrack = seasonTrackLevels(bonusTable ?? {})
+    const sets = new Map<DifficultyKey, Set<number>>(Object.entries(byTrack).map(([k, v]) => [k as DifficultyKey, new Set(v)]))
+    for (const a of auctions) {
+      if (a.decoded.difficulty && a.decoded.ilvl > 0) sets.get(a.decoded.difficulty)?.add(a.decoded.ilvl)
+    }
+    const out = {} as Record<DifficultyKey, number[]>
+    for (const [k, v] of sets) out[k] = [...v].sort((x, y) => x - y)
+    return out
+  }, [bonusTable, auctions])
   const cheapestPerItem = useMemo(() => {
     const m = new Map<number, DecodedAuction>()
     for (const a of filtered) {
@@ -222,7 +233,15 @@ export function App() {
         </div>
       ) : (
         <div className="layout">
-          <FiltersPanel filters={view.filters} onChange={setFilters} onReset={resetFilters} regionData={regionData} itemCounts={itemCounts} realmCounts={realmCounts} />
+          <FiltersPanel
+            filters={view.filters}
+            onChange={setFilters}
+            onReset={resetFilters}
+            regionData={regionData}
+            itemCounts={itemCounts}
+            realmCounts={realmCounts}
+            levelsByDifficulty={levelsByDifficulty}
+          />
           <main>
             {banner && (
               <div className={`banner ${banner.tone}`}>

@@ -135,3 +135,37 @@ export function difficultyForIlvl(ilvl: number, season: SeasonConfig = CURRENT_S
   }
   return best
 }
+
+export type BonusTrackInfo = Record<string, { u?: [string, number, number]; ui?: number }>
+
+/**
+ * Item levels reachable on each difficulty's upgrade track this season (every upgrade step,
+ * read from the bonus table), sorted ascending. Steps far above the top difficulty belong to
+ * a later season and are ignored.
+ */
+export function seasonTrackLevels(table: BonusTrackInfo, season: SeasonConfig = CURRENT_SEASON): Record<DifficultyKey, number[]> {
+  const lowest = Math.min(...season.difficulties.map((d) => d.ilvl))
+  const ceiling = Math.max(...season.difficulties.map((d) => d.ilvl)) + 20
+  const out = {} as Record<DifficultyKey, number[]>
+  for (const d of season.difficulties) {
+    const levels = new Set<number>([d.ilvl])
+    for (const b of Object.values(table)) {
+      if (b.u && b.ui !== undefined && b.u[0].toLowerCase() === d.track.toLowerCase() && b.ui >= lowest && b.ui <= ceiling) levels.add(b.ui)
+    }
+    out[d.key] = [...levels].sort((a, b) => a - b)
+  }
+  return out
+}
+
+/**
+ * Item levels that gear of this season can have: the union of all difficulty tracks plus any
+ * levels observed in the data (inside the season's range). Sorted ascending.
+ */
+export function seasonItemLevels(table: BonusTrackInfo, observed: Iterable<number> = [], season: SeasonConfig = CURRENT_SEASON): number[] {
+  const lowest = Math.min(...season.difficulties.map((d) => d.ilvl))
+  const ceiling = Math.max(...season.difficulties.map((d) => d.ilvl)) + 20
+  const levels = new Set<number>()
+  for (const list of Object.values(seasonTrackLevels(table, season))) for (const l of list) levels.add(l)
+  for (const ilvl of observed) if (ilvl >= lowest && ilvl <= ceiling) levels.add(ilvl)
+  return [...levels].sort((a, b) => a - b)
+}

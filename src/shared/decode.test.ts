@@ -93,3 +93,23 @@ describe('decodeItem (Midnight Season 2 raid gear)', () => {
     expect(formatGold(9999)).toBe('0g')
   })
 })
+
+describe('seasonItemLevels', () => {
+  it('lists every upgrade step of the season tracks and nothing from other seasons', async () => {
+    const { seasonItemLevels } = await import('./season.ts')
+    expect(seasonItemLevels(vendored)).toEqual([279, 282, 285, 289, 292, 295, 298, 302, 305, 308, 311, 315, 318, 321, 324, 328, 331, 334])
+  })
+  it('lists the steps of each difficulty track separately', async () => {
+    const { seasonTrackLevels } = await import('./season.ts')
+    const byTrack = seasonTrackLevels(vendored)
+    expect(byTrack.lfr).toEqual([279, 282, 285, 289, 292, 295])
+    expect(byTrack.normal).toEqual([292, 295, 298, 302, 305, 308])
+    expect(byTrack.heroic).toEqual([305, 308, 311, 315, 318, 321])
+    expect(byTrack.mythic).toEqual([318, 321, 324, 328, 331, 334])
+  })
+  it('adds observed levels inside the season range only', async () => {
+    const { seasonItemLevels } = await import('./season.ts')
+    const levels = seasonItemLevels({}, [300, 150, 500, 279])
+    expect(levels).toEqual([279, 292, 300, 305, 318])
+  })
+})
