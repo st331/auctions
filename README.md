@@ -52,9 +52,12 @@ GitHub Actions (every 30 min)                         GitHub Pages (static)
 From then on a scan runs about every **10 minutes**. Notes:
 
 * GitHub throttles `schedule` triggers heavily (a `*/30` cron fired only every ~3 hours in practice), so the
-  workflow re-queues itself: at the end of each run it waits until `SCAN_INTERVAL_SECONDS` (repository variable,
-  default 600) after the run started and then dispatches the next run. The cron line is only a backstop that restarts
-  the chain if a run fails. To pause scanning, disable the workflow on the Actions page.
+  workflow re-queues itself: at the end of each scan it dispatches the next run with a delay so that scans start
+  every `SCAN_INTERVAL_SECONDS` (repository variable, default 600). The delay is spent in a separate `wait` job, so a
+  push that deploys new code never waits behind it. The cron line is only a backstop that restarts the chain if a run
+  fails. To pause scanning, disable the workflow on the Actions page.
+* The site checks for a newer scan every minute (and whenever its tab becomes visible again) and reloads the listings
+  automatically, keeping your filters. The header shows both the scan time and Blizzard's snapshot time.
 * Blizzard refreshes each realm's auction-house snapshot roughly **once per hour**, so scanning more often than that
   mostly re-uses unchanged snapshots (the scanner sends `If-Modified-Since` and skips realms that have not changed).
 * Public repositories get unlimited Actions minutes. A private repository's free quota (2,000 min/month) is **not**

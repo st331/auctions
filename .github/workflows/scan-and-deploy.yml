@@ -19,6 +19,11 @@ on:
         description: 'Regions to scan (comma separated: us, eu, kr, tw). Overrides the REGIONS variable.'
         required: false
         type: string
+      delay:
+        description: 'Seconds to wait before scanning (set by the self-scheduling chain; leave 0 for a manual run).'
+        required: false
+        default: '0'
+        type: string
 
 permissions:
   contents: read
@@ -26,17 +31,36 @@ permissions:
   id-token: write
   actions: write # lets a run dispatch the next one
 
-# Never run two scans/deploys at the same time; a newer queued run replaces older queued ones.
-concurrency:
-  group: scan-and-deploy
-  cancel-in-progress: false
-
 jobs:
+  # The self-scheduling chain waits here, outside the scan/deploy concurrency group, so a push
+  # that deploys new code never has to wait behind a sleeping run.
+  wait:
+    if: github.event_name == 'workflow_dispatch' && inputs.delay != '' && inputs.delay != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Wait before scanning
+        env:
+          DELAY: ${{ inputs.delay }}
+        run: |
+          case "$DELAY" in ''|*[!0-9]*) echo "invalid delay '$DELAY', not waiting"; exit 0;; esac
+          [ "$DELAY" -gt 1500 ] && DELAY=1500
+          echo "Waiting ${DELAY}s"
+          sleep "$DELAY"
+
   scan-and-deploy:
-    # Pushes only deploy from the repository's default branch (schedules always run there).
-    if: github.event_name != 'push' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs: [wait]
+    # Runs after the wait job (or when it was skipped). Pushes only deploy from the repository's
+    # default branch (schedules always run there).
+    if: >-
+      !cancelled() && (needs.wait.result == 'success' || needs.wait.result == 'skipped') &&
+      (github.event_name != 'push' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    # Never run two scans/deploys at the same time; a newer queued run replaces older queued ones.
+    concurrency:
+      group: scan-and-deploy
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -112,9 +136,10 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v5
 
-      # Self-scheduling: wait until SCAN_INTERVAL_SECONDS (default 600) after this run started,
-      # then queue the next run. The concurrency group keeps at most one run pending, so the
-      # cron backstop and this chain never pile up. Pushes do not chain (the running chain continues).
+      # Self-scheduling: queue the next run with a delay so that scans start every
+      # SCAN_INTERVAL_SECONDS (default 600). The next run waits in its own 'wait' job. The
+      # concurrency group keeps at most one scan pending, so the cron backstop and this chain
+      # never pile up. Pushes do not chain (the running chain continues).
       - name: Schedule the next scan
         if: steps.config.outputs.configured == 'true' && github.event_name != 'push'
         env:
@@ -123,10 +148,8 @@ jobs:
           INTERVAL: ${{ vars.SCAN_INTERVAL_SECONDS || '600' }}
         run: |
           elapsed=$(( $(date +%s) - STARTED ))
-          wait=$(( INTERVAL - elapsed ))
-          if [ "$wait" -gt 0 ]; then
-            echo "Scan took ${elapsed}s; waiting ${wait}s before queuing the next run"
-            sleep "$wait"
-          fi
-          gh workflow run scan-and-deploy.yml --ref "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY"
+          delay=$(( INTERVAL - elapsed ))
+          [ "$delay" -lt 0 ] && delay=0
+          echo "Scan took ${elapsed}s; next scan in ${delay}s"
+          gh workflow run scan-and-deploy.yml --ref "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" -f "delay=$delay"
           echo "Next run queued"
