@@ -2,7 +2,7 @@
 # and publishes the site + fresh data to GitHub Pages.
 #
 # Required repository secrets:  BLIZZARD_CLIENT_ID, BLIZZARD_CLIENT_SECRET
-# Optional repository variables: REGIONS (default "us"), SCAN_CONCURRENCY (default 6)
+# Optional repository variables: REGIONS (default "us,eu"), SCAN_CONCURRENCY (default 6)
 name: Scan auctions and deploy
 
 on:
@@ -90,7 +90,7 @@ jobs:
         env:
           BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
           BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
-          REGIONS: ${{ inputs.regions || vars.REGIONS || 'us' }}
+          REGIONS: ${{ inputs.regions || vars.REGIONS || 'us,eu' }}
           SCAN_CONCURRENCY: ${{ vars.SCAN_CONCURRENCY || '6' }}
           # Lets the scanner re-use realms whose auction snapshot has not changed since the last deploy.
           PREVIOUS_DATA_URL: ${{ steps.pages.outputs.base_url }}/data

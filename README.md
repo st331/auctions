@@ -40,7 +40,7 @@ GitHub Actions (every 30 min)                         GitHub Pages (static)
    * `BLIZZARD_CLIENT_ID`
    * `BLIZZARD_CLIENT_SECRET`
 3. *(Optional)* **Repository variables** (same page, *Variables* tab):
-   * `REGIONS` – comma separated regions to scan, default `us` (supported: `us`, `eu`, `kr`, `tw`). Each extra region adds a few minutes per run.
+   * `REGIONS` – comma separated regions to scan, default `us,eu` (supported: `us`, `eu`, `kr`, `tw`). Each extra region adds a few minutes per run.
    * `SCAN_CONCURRENCY` – parallel realm downloads, default `6`.
 4. **Enable GitHub Pages with the "GitHub Actions" source**: Settings → Pages → *Build and deployment* → Source:
    **GitHub Actions**. (The workflow also tries to enable this automatically on its first run.)
