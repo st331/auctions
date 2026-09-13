@@ -81,6 +81,22 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # A code push restarts the scan chain: cancel every waiting/running scheduled or dispatched
+      # run (they would otherwise redeploy the previous code or run alongside the new chain) and
+      # queue a fresh chain after this run's deploy (see the last step).
+      - name: Cancel pending scan runs (code push)
+        if: steps.config.outputs.configured == 'true' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run list --workflow scan-and-deploy.yml --repo "$GITHUB_REPOSITORY" --limit 50 \
+            --json databaseId,status,event \
+            --jq ".[] | select(.databaseId != $GITHUB_RUN_ID and .event != \"push\" and (.status == \"queued\" or .status == \"in_progress\" or .status == \"waiting\" or .status == \"requested\" or .status == \"pending\")) | .databaseId" \
+          | while read -r id; do
+              echo "Cancelling run $id"
+              gh run cancel "$id" --repo "$GITHUB_REPOSITORY" || true
+            done
+
       # Always build the branch's current tip: a chained run is created up to 10 minutes before it
       # runs, and its pinned commit would otherwise redeploy code older than a push in between.
       - name: Check out
@@ -141,18 +157,18 @@ jobs:
         uses: actions/deploy-pages@v5
 
       # Self-scheduling: queue the next run with a delay so that scans start every
-      # SCAN_INTERVAL_SECONDS (default 600). The next run waits in its own 'wait' job. The
-      # concurrency group keeps at most one scan pending, so the cron backstop and this chain
-      # never pile up. Pushes do not chain (the running chain continues).
+      # SCAN_INTERVAL_SECONDS (default 600). The next run waits in its own 'wait' job. A push
+      # run (which cancelled the old chain above) starts a fresh chain here.
       - name: Schedule the next scan
-        if: steps.config.outputs.configured == 'true' && github.event_name != 'push'
+        if: steps.config.outputs.configured == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           STARTED: ${{ steps.config.outputs.started }}
           INTERVAL: ${{ vars.SCAN_INTERVAL_SECONDS || '600' }}
         run: |
           # If another scheduled/dispatched run is already waiting or running, it will continue the
-          # chain; queuing a second successor here would start a parallel chain.
+          # chain; queuing a second successor here would start a parallel chain. (A push run has
+          # cancelled those above, so it always starts a new chain.)
           pending=$(gh run list --workflow scan-and-deploy.yml --repo "$GITHUB_REPOSITORY" --limit 30 \
             --json databaseId,status,event \
             --jq "[.[] | select(.databaseId != $GITHUB_RUN_ID and .event != \"push\" and (.status == \"queued\" or .status == \"in_progress\" or .status == \"waiting\" or .status == \"requested\" or .status == \"pending\"))] | length")
