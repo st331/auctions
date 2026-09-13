@@ -19,7 +19,7 @@ export const DEFAULT_SORT: SortSpec = { key: 'buyout', dir: 'asc' }
 
 const STORAGE_KEY = 'boe-scanner.view'
 const SORT_KEYS: SortKey[] = ['buyout', 'ilvl', 'item', 'realm', 'timeLeft']
-const MODES: SecondaryMode[] = ['any', 'all', 'exact']
+const MODES: SecondaryMode[] = ['any', 'all']
 const SECONDARY_IDS = SECONDARY_STATS.map((s) => s.id)
 const TERTIARY_IDS = TERTIARY_STATS.map((s) => s.id)
 const DIFFICULTY_KEYS = CURRENT_SEASON.difficulties.map((d) => d.key)
@@ -52,8 +52,14 @@ export function parseQuery(search: string): Partial<ViewState> {
   const max = Number(q.get('max'))
   if (q.get('max') && Number.isFinite(max) && max > 0) f.maxBuyoutGold = max
   f.secondaries = numList(q.get('sec'), SECONDARY_IDS)
+  f.excludedSecondaries = numList(q.get('xsec'), SECONDARY_IDS).filter((id) => !f.secondaries.includes(id))
   const mode = q.get('mode')
   if (mode && (MODES as string[]).includes(mode)) f.secondaryMode = mode as SecondaryMode
+  if (mode === 'exact' && f.secondaries.length > 0) {
+    // Old links: "exactly these" = want all of them and exclude the rest.
+    f.secondaryMode = 'all'
+    f.excludedSecondaries = SECONDARY_IDS.filter((id) => !f.secondaries.includes(id))
+  }
   const major = Number(q.get('major'))
   if (q.get('major') && SECONDARY_IDS.includes(major)) f.majorStat = major
   f.tertiaries = numList(q.get('tert'), [...TERTIARY_IDS, 0])
@@ -79,6 +85,7 @@ export function toQuery(state: ViewState): string {
   if (f.maxBuyoutGold !== null) q.set('max', String(f.maxBuyoutGold))
   if (f.secondaries.length) q.set('sec', f.secondaries.join(','))
   if (f.secondaryMode !== 'any') q.set('mode', f.secondaryMode)
+  if (f.excludedSecondaries.length) q.set('xsec', f.excludedSecondaries.join(','))
   if (f.majorStat !== null) q.set('major', String(f.majorStat))
   if (f.tertiaries.length) q.set('tert', f.tertiaries.join(','))
   if (f.realms) q.set('realms', f.realms.join(','))

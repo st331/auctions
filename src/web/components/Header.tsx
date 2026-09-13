@@ -34,16 +34,16 @@ export function Header({ index, regionData, region, onRegion, onRefresh, refresh
     ? `Scan finished ${formatTime(regionData?.generatedAt)} · ${stats.realmsFetched} realms downloaded, ${stats.realmsReused} unchanged, ${stats.realmsFailed} failed · ${Math.round(stats.durationMs / 1000)}s`
     : ''
   return (
-    <header className="header">
-      <div>
-        <h1>BoE Auction Scanner</h1>
-        <div className="season">
-          {CURRENT_SEASON.name} · {CURRENT_SEASON.raid} raid BoEs · every auction house in the region
-        </div>
+    <header className="topbar">
+      <div className="wordmark" title={`${CURRENT_SEASON.name} · ${CURRENT_SEASON.raid} raid BoEs · every auction house in the region`}>
+        BoE <span className="acc">Scanner</span>
+        <small>
+          {CURRENT_SEASON.name} · {CURRENT_SEASON.raid}
+        </small>
       </div>
       <div className="spacer" />
       <label className="gold-price" title="What you pay for gold, per 1,000,000 gold. Drives the 'Your rate' cost column. Stored in this browser only.">
-        <span className="muted">Gold price</span>
+        <span className="lgl">Gold price</span>
         <select value={goldPrice.currency} onChange={(e) => onGoldPrice({ ...goldPrice, currency: e.target.value })} aria-label="Currency">
           {GOLD_PRICE_CURRENCIES.map((c) => (
             <option key={c} value={c}>
@@ -64,11 +64,11 @@ export function Header({ index, regionData, region, onRegion, onRefresh, refresh
             onGoldPrice({ ...goldPrice, perMillion: e.target.value.trim() === '' || !Number.isFinite(v) || v <= 0 ? null : v })
           }}
         />
-        <span className="faint">per 1M gold</span>
+        <span className="faint">/ 1M</span>
       </label>
       {regions.length > 1 && (
         <label className="row">
-          <span className="muted">Region</span>
+          <span className="lgl">Region</span>
           <select value={region ?? ''} onChange={(e) => onRegion(e.target.value)} style={{ width: 'auto' }}>
             {regions.map((r) => (
               <option key={r.region} value={r.region}>
@@ -81,10 +81,10 @@ export function Header({ index, regionData, region, onRegion, onRefresh, refresh
       {regions.length === 1 && <span className="muted">{REGIONS[regions[0]!.region]?.label ?? regions[0]!.region.toUpperCase()}</span>}
       {regionData && (
         <span className="status" title={title}>
-          {problems ? '⚠' : '●'} Scanned {formatRelative(regionData.generatedAt)}
+          <span className={`dot ${problems ? 'warn' : ''}`} /> Scanned {formatRelative(regionData.generatedAt)}
           {snapshot && (
             <span className="faint" title="Blizzard publishes a new auction-house snapshot per region roughly once an hour; this is the snapshot the listings come from">
-              · Blizzard snapshot {formatTime(snapshot)} ({formatRelative(snapshot)})
+              · snapshot {formatTime(snapshot)}
             </span>
           )}
           <button className="btn small" onClick={onRefresh} disabled={refreshing} title="Check for a newer scan now (the page also checks every minute)">

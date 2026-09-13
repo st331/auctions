@@ -60,8 +60,8 @@ export function FiltersPanel({ filters, onChange, onReset, regionData, itemCount
 
   return (
     <aside className="filters">
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <strong>Filters</strong>
+      <div className="filters-head">
+        <span className="t">Filters</span>
         <button className="btn small" onClick={onReset}>
           Reset all
         </button>
@@ -116,10 +116,7 @@ export function FiltersPanel({ filters, onChange, onReset, regionData, itemCount
             </select>
           </div>
         </div>
-        <p className="hint">
-          Difficulty chips match the item's upgrade track (LFR = Veteran, Normal = Champion, Heroic = Hero, Mythic = Myth) and can be combined. The
-          level drop-downs list the upgrade steps of the selected tracks (all tracks when none is selected).
-        </p>
+        <p className="hint">Chips select whole upgrade tracks; the drop-downs list the steps of the selected tracks.</p>
       </div>
 
       <div className="card">
@@ -156,7 +153,8 @@ export function FiltersPanel({ filters, onChange, onReset, regionData, itemCount
       </div>
 
       <SecondaryFilter
-        selected={filters.secondaries}
+        wanted={filters.secondaries}
+        excluded={filters.excludedSecondaries}
         mode={filters.secondaryMode}
         majorStat={filters.majorStat}
         onChange={(patch) => onChange(patch)}
@@ -190,7 +188,7 @@ export function FiltersPanel({ filters, onChange, onReset, regionData, itemCount
             Any tertiary
           </button>
         </div>
-        <p className="hint">Items match if their tertiary is one of the selected ones. "None" selects items without a tertiary.</p>
+        <p className="hint">Any of the selected; "None" = no tertiary.</p>
       </div>
 
       <RealmPicker regionData={regionData} selected={filters.realms} onChange={(realms) => onChange({ realms })} counts={realmCounts} />

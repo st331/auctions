@@ -7,12 +7,12 @@ import type { DifficultyKey } from './season.ts'
 import type { RawAuction } from './types.ts'
 
 /**
- * How the selected secondary stats are matched against an item's stats:
- *  - any:   the item has at least one of the selected stats
- *  - all:   the item has every selected stat (it may have others too)
- *  - exact: the item's stats are exactly the selected ones, nothing more
+ * How the wanted secondary stats are matched against an item's stats:
+ *  - any: the item has at least one of the wanted stats
+ *  - all: the item has every wanted stat
+ * Excluded stats must not appear at all; "exactly these" = want them + exclude the rest.
  */
-export type SecondaryMode = 'any' | 'all' | 'exact'
+export type SecondaryMode = 'any' | 'all'
 
 export type SocketFilter = 'any' | 'yes' | 'no'
 
@@ -29,8 +29,11 @@ export interface Filters {
   socket: SocketFilter
   /** Maximum buyout in gold; null = no limit. */
   maxBuyoutGold: number | null
+  /** Wanted secondary stat ids. */
   secondaries: number[]
   secondaryMode: SecondaryMode
+  /** Secondary stat ids that must NOT be on the item. */
+  excludedSecondaries: number[]
   /** If set, the item's major (higher-budget) secondary must be this stat. */
   majorStat: number | null
   /** Tertiary stat ids to include (NO_TERTIARY = items without a tertiary); empty = no filter. */
@@ -48,6 +51,7 @@ export const DEFAULT_FILTERS: Filters = {
   maxBuyoutGold: null,
   secondaries: [],
   secondaryMode: 'any',
+  excludedSecondaries: [],
   majorStat: null,
   tertiaries: [],
   realms: null,
@@ -57,18 +61,10 @@ export interface DecodedAuction extends RawAuction {
   decoded: DecodedItem
 }
 
-export function matchesSecondaries(itemStats: readonly number[], selected: readonly number[], mode: SecondaryMode): boolean {
-  if (selected.length === 0) return true
-  switch (mode) {
-    case 'any':
-      return selected.some((s) => itemStats.includes(s))
-    case 'all':
-      return selected.every((s) => itemStats.includes(s))
-    case 'exact': {
-      if (itemStats.length !== new Set(selected).size) return false
-      return selected.every((s) => itemStats.includes(s))
-    }
-  }
+export function matchesSecondaries(itemStats: readonly number[], wanted: readonly number[], mode: SecondaryMode, excluded: readonly number[] = []): boolean {
+  if (excluded.some((s) => itemStats.includes(s))) return false
+  if (wanted.length === 0) return true
+  return mode === 'all' ? wanted.every((s) => itemStats.includes(s)) : wanted.some((s) => itemStats.includes(s))
 }
 
 export function matchesFilters(a: DecodedAuction, f: Filters): boolean {
@@ -88,7 +84,7 @@ export function matchesFilters(a: DecodedAuction, f: Filters): boolean {
     if (!f.tertiaries.includes(t)) return false
   }
 
-  if (!matchesSecondaries(d.secondaries, f.secondaries, f.secondaryMode)) return false
+  if (!matchesSecondaries(d.secondaries, f.secondaries, f.secondaryMode, f.excludedSecondaries)) return false
   if (f.majorStat !== null && d.secondaries[0] !== f.majorStat) return false
 
   return true

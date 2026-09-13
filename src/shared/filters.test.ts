@@ -22,27 +22,29 @@ function auction(over: Omit<Partial<DecodedAuction>, 'decoded'> & { decoded?: Pa
 
 describe('matchesSecondaries', () => {
   const critHaste = [CRIT, HASTE]
-  it('any: at least one selected stat present', () => {
+  it('any: at least one wanted stat present', () => {
     expect(matchesSecondaries(critHaste, [CRIT], 'any')).toBe(true)
     expect(matchesSecondaries(critHaste, [VERS], 'any')).toBe(false)
     expect(matchesSecondaries(critHaste, [VERS, HASTE], 'any')).toBe(true)
   })
-  it('all: every selected stat present', () => {
+  it('all: every wanted stat present', () => {
     expect(matchesSecondaries(critHaste, [CRIT], 'all')).toBe(true)
     expect(matchesSecondaries(critHaste, [CRIT, HASTE], 'all')).toBe(true)
     expect(matchesSecondaries(critHaste, [CRIT, VERS], 'all')).toBe(false)
-    expect(matchesSecondaries(critHaste, [CRIT, HASTE, VERS], 'all')).toBe(false)
   })
-  it('exact: stats are precisely the selection', () => {
-    expect(matchesSecondaries(critHaste, [CRIT, HASTE], 'exact')).toBe(true)
-    expect(matchesSecondaries(critHaste, [HASTE, CRIT], 'exact')).toBe(true)
-    expect(matchesSecondaries(critHaste, [CRIT], 'exact')).toBe(false)
-    expect(matchesSecondaries([CRIT], [CRIT], 'exact')).toBe(true)
-    expect(matchesSecondaries(critHaste, [CRIT, HASTE, VERS], 'exact')).toBe(false)
+  it('excluded stats must be absent', () => {
+    expect(matchesSecondaries(critHaste, [], 'any', [VERS])).toBe(true)
+    expect(matchesSecondaries(critHaste, [], 'any', [HASTE])).toBe(false)
+    expect(matchesSecondaries(critHaste, [CRIT], 'any', [HASTE])).toBe(false)
+    expect(matchesSecondaries([CRIT, MASTERY], [CRIT], 'any', [HASTE, VERS])).toBe(true)
+  })
+  it('"exactly crit and haste" = want both + exclude the rest', () => {
+    expect(matchesSecondaries(critHaste, [CRIT, HASTE], 'all', [MASTERY, VERS])).toBe(true)
+    expect(matchesSecondaries([CRIT, MASTERY], [CRIT, HASTE], 'all', [MASTERY, VERS])).toBe(false)
   })
   it('no selection matches everything', () => {
-    expect(matchesSecondaries(critHaste, [], 'exact')).toBe(true)
-    expect(matchesSecondaries([], [], 'any')).toBe(true)
+    expect(matchesSecondaries(critHaste, [], 'any')).toBe(true)
+    expect(matchesSecondaries([], [], 'all')).toBe(true)
   })
 })
 
@@ -92,31 +94,25 @@ describe('matchesFilters', () => {
     expect(matchesFilters(auction(), f({ tertiaries: [NO_TERTIARY] }))).toBe(true)
     expect(matchesFilters(leech, f({ tertiaries: [NO_TERTIARY] }))).toBe(false)
   })
-  it('expresses "rings with crit", "crit and haste", "just crit" and "crit as the major stat"', () => {
+  it('expresses "rings with crit", "crit and haste", "just crit", "no vers" and "crit as the major stat"', () => {
     const critHaste = auction({ decoded: { secondaries: [CRIT, HASTE] } })
     const hasteCrit = auction({ decoded: { secondaries: [HASTE, CRIT] } })
-    const critOnly = auction({ decoded: { secondaries: [CRIT] } })
+    const critVers = auction({ decoded: { secondaries: [CRIT, VERS] } })
     const versMastery = auction({ decoded: { secondaries: [VERS, MASTERY] } })
+    const all = [critHaste, hasteCrit, critVers, versMastery]
 
     // "all rings that have crit on them"
-    const hasCrit = f({ secondaries: [CRIT], secondaryMode: 'any' })
-    expect([critHaste, hasteCrit, critOnly, versMastery].map((a) => matchesFilters(a, hasCrit))).toEqual([true, true, true, false])
-
+    expect(all.map((a) => matchesFilters(a, f({ secondaries: [CRIT] })))).toEqual([true, true, true, false])
     // "all rings with crit and haste"
-    const critAndHaste = f({ secondaries: [CRIT, HASTE], secondaryMode: 'all' })
-    expect([critHaste, hasteCrit, critOnly, versMastery].map((a) => matchesFilters(a, critAndHaste))).toEqual([true, true, false, false])
-
-    // "all rings with just crit"
-    const justCrit = f({ secondaries: [CRIT], secondaryMode: 'exact' })
-    expect([critHaste, hasteCrit, critOnly, versMastery].map((a) => matchesFilters(a, justCrit))).toEqual([false, false, true, false])
-
+    expect(all.map((a) => matchesFilters(a, f({ secondaries: [CRIT, HASTE], secondaryMode: 'all' })))).toEqual([true, true, false, false])
+    // "rings with crit but never vers"
+    expect(all.map((a) => matchesFilters(a, f({ secondaries: [CRIT], excludedSecondaries: [VERS] })))).toEqual([true, true, false, false])
+    // "just crit and haste, nothing else"
+    expect(all.map((a) => matchesFilters(a, f({ secondaries: [CRIT, HASTE], secondaryMode: 'all', excludedSecondaries: [MASTERY, VERS] })))).toEqual([true, true, false, false])
     // "crit is the item's major stat"
-    const critMajor = f({ majorStat: CRIT })
-    expect([critHaste, hasteCrit, critOnly, versMastery].map((a) => matchesFilters(a, critMajor))).toEqual([true, false, true, false])
-
-    // combination: crit + haste where crit is major
-    const combo = f({ secondaries: [CRIT, HASTE], secondaryMode: 'all', majorStat: CRIT })
-    expect([critHaste, hasteCrit, critOnly, versMastery].map((a) => matchesFilters(a, combo))).toEqual([true, false, false, false])
+    expect(all.map((a) => matchesFilters(a, f({ majorStat: CRIT })))).toEqual([true, false, true, false])
+    // combination: crit major, haste wanted, vers excluded
+    expect(all.map((a) => matchesFilters(a, f({ secondaries: [HASTE], majorStat: CRIT, excludedSecondaries: [VERS] })))).toEqual([true, false, false, false])
   })
 })
 

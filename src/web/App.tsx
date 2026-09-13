@@ -195,8 +195,9 @@ export function App() {
 
   if (loadError && !regionData) {
     return (
-      <div className="app">
+      <>
         {header}
+        <div className="app">
         <div className="banner bad">
           <div>
             <strong>Could not load auction data.</strong> {loadError}
@@ -206,14 +207,15 @@ export function App() {
             </div>
           </div>
         </div>
-      </div>
+        </div>
+      </>
     )
   }
 
   return (
-    <div className="app">
+    <>
       {header}
-
+      <div className="app">
       {loading && !regionData ? (
         <div className="loading">
           <span className="spinner" /> Loading auction data…
@@ -324,14 +326,13 @@ export function App() {
             />
 
             <div className="footer">
-              Prices are buyouts from Blizzard's auction house snapshots, which update roughly hourly per realm; the scan runs every 10 minutes and the page reloads
-              newer data on its own. Click an item to open it on Undermine Exchange for that realm; hover for the Wowhead tooltip of that exact variant. Gold is
-              warband-wide, so a level 1 character on the listing's realm can buy the item and mail it through the warband bank. Not affiliated with Blizzard
-              Entertainment.
+              Buyouts from Blizzard's hourly auction-house snapshots, rescanned every 10 minutes. Click an item for Undermine Exchange, hover for the Wowhead
+              tooltip. Not affiliated with Blizzard Entertainment.
             </div>
           </main>
         </div>
       )}
-    </div>
+      </div>
+    </>
   )
 }
