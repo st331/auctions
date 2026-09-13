@@ -69,7 +69,7 @@ From then on a scan runs about every **10 minutes**. Notes:
 
 ## Using the site
 
-* **Items** – tick the BoEs you care about (grouped by armour type; "only" limits to one group). Counts next to each
+* **Items** – tick the BoEs you care about; the checkbox on each armour-type heading selects or clears that whole group. Counts next to each
   item show how many listings match your other filters.
 * **Item level** – difficulty chips select whole upgrade tracks (LFR = Veteran, Normal = Champion, Heroic = Hero,
   Mythic = Myth) and can be combined; min/max item level gives fine control (upgraded items are decoded to their

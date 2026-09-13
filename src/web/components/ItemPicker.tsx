@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { CURRENT_SEASON } from '../../shared/season.ts'
 import { itemIconUrl } from '../lib/data.ts'
 
@@ -9,6 +10,15 @@ interface Props {
 }
 
 const ALL_IDS = CURRENT_SEASON.categories.flatMap((c) => c.items.map((i) => i.id))
+
+/** Checkbox that shows the partial (indeterminate) state when only some of a group's items are selected. */
+function GroupCheckbox({ onCount, total, onToggle }: { onCount: number; total: number; onToggle: () => void }) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = onCount > 0 && onCount < total
+  }, [onCount, total])
+  return <input ref={ref} type="checkbox" checked={onCount === total} onChange={onToggle} aria-label="Toggle group" />
+}
 
 export function ItemPicker({ selected, onChange, counts }: Props) {
   const isOn = (id: number) => selected === null || selected.includes(id)
@@ -22,7 +32,6 @@ export function ItemPicker({ selected, onChange, counts }: Props) {
     for (const id of ids) (on ? current.add(id) : current.delete(id))
     set(ALL_IDS.filter((id) => current.has(id)))
   }
-  const only = (ids: number[]) => set(ids)
 
   return (
     <div className="card">
@@ -42,17 +51,13 @@ export function ItemPicker({ selected, onChange, counts }: Props) {
         const onCount = ids.filter(isOn).length
         return (
           <div className="item-group" key={cat.id}>
-            <div className="item-group-head">
+            <label className="item-group-head" title={onCount === ids.length ? `Deselect all ${cat.label}` : `Select all ${cat.label}`}>
+              <GroupCheckbox onCount={onCount} total={ids.length} onToggle={() => setGroup(ids, onCount !== ids.length)} />
               <span>{cat.label}</span>
-              <span className="toggles">
-                <button className="link-btn" onClick={() => only(ids)} title={`Show only ${cat.label}`}>
-                  only
-                </button>
-                <button className="link-btn" onClick={() => setGroup(ids, onCount !== ids.length)}>
-                  {onCount === ids.length ? 'none' : 'all'}
-                </button>
+              <span className="faint" style={{ marginLeft: 'auto', fontWeight: 400, fontSize: 12 }}>
+                {onCount}/{ids.length}
               </span>
-            </div>
+            </label>
             {cat.items.map((item) => (
               <label className={`item-row ${isOn(item.id) ? '' : 'off'}`} key={item.id}>
                 <input type="checkbox" checked={isOn(item.id)} onChange={() => toggle(item.id)} />

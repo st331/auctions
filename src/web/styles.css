@@ -392,13 +392,19 @@ td.money.token {
   align-items: center;
   gap: 8px;
   font-weight: 600;
-  padding: 4px 0;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
 }
 
-.item-group-head .toggles {
-  margin-left: auto;
-  display: flex;
-  gap: 4px;
+.item-group-head:hover {
+  background: var(--bg-elev-2);
+}
+
+.item-group-head input {
+  accent-color: var(--accent);
+  margin: 0;
 }
 
 .item-row {
