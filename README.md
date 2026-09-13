@@ -3,8 +3,8 @@
 A static website, hosted on GitHub Pages, that scans **every auction house in a World of Warcraft region** for the
 **current season's Bind-on-Equip raid gear** and lets you find the cheapest listing that matches exactly what you
 want: item, item level / difficulty, socket, secondary stats (with *any / all / exactly* matching and a "major stat"
-option), tertiary stat, maximum buyout and realm. Any listing can then be **verified in real time** against Blizzard's
-API straight from the browser.
+option), tertiary stat, maximum buyout and realm. Every listing also shows what it costs in real money, both at your
+own gold price and via the WoW Token.
 
 Everything runs on GitHub: a GitHub Actions workflow scans the auction houses every 30 minutes and deploys the site
 plus fresh data to GitHub Pages. There is no server to maintain.
@@ -21,10 +21,9 @@ GitHub Actions (every 30 min)                         GitHub Pages (static)
 │    • skip realms unchanged (304)   │ │              └──────────────────────────────────┘
 │ 3. upload dist/ as Pages artifact  ◀─┘                        │
 └──────────────────────────────────────┘                        ▼
-                                                     Browser: filters + sorting run locally.
-                                                     "Verify" re-downloads one realm's auction
-                                                     house from Blizzard with your own API
-                                                     credentials (stored only in your browser).
+                                                     Browser: filters, sorting and the real-money
+                                                     cost columns run locally; the page reloads
+                                                     newer scans on its own.
 ```
 
 * `src/shared/` – season configuration, bonus-id decoding (item level, upgrade track, socket, tertiary, secondaries) and the filter logic. Used by both the scanner and the site.
@@ -88,20 +87,10 @@ From then on a scan runs about every **10 minutes**. Notes:
 * Click an item name to open it on **Undermine Exchange** for that realm and item level (price history and the
   realm's other listings); hover it for the **Wowhead tooltip** of that exact variant, or use the small *wowhead*
   link under the name.
-
-### Real-time verification
-
-The table shows the state of the last scan. Click **Verify** on a listing to re-download that realm's auction house
-from Blizzard right now, in your browser. The site reports whether the listing is still there (and refreshes every
-season BoE listing of that realm while it is at it).
-
-This needs Blizzard API credentials because Blizzard requires an OAuth token for every request: click **⚙ Set up
-verification** and paste the same Client ID / Secret you created above. They are stored only in that browser's
-`localStorage` and are sent only to Blizzard's OAuth and Game Data endpoints (both allow browser requests). Anyone
-with the credentials could use your API quota, so do not share them and do not enter them on a shared computer;
-you can revoke them at any time in the Blizzard developer portal or with **Forget credentials**.
-
-"Verified" means "present in Blizzard's most recent snapshot for that realm", which can itself be up to an hour old.
+* **Real-money cost columns.** Enter what you pay for gold in the header (currency and price per 1,000,000 gold; it is
+  remembered in that browser). The *Your rate* column shows each buyout at that price, and the *Via token* column shows
+  what the same gold would cost through WoW Tokens at the region's current token price (US$20, €20, ₩22,000 or NT$500
+  per token). The line above the table shows both rates per million gold, so you can see which way is cheaper.
 
 ## Local development
 

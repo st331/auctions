@@ -4,17 +4,8 @@ import { formatCopperExact, formatGold, statLabel } from '../../shared/decode.ts
 import type { DecodedAuction, SortKey, SortSpec } from '../../shared/filters.ts'
 import { CURRENT_SEASON, seasonItemMap } from '../../shared/season.ts'
 import type { RegionData } from '../../shared/types.ts'
-import { formatRelative, itemIconUrl } from '../lib/data.ts'
-
-export interface VerifyResult {
-  ok: boolean
-  at: string
-}
-
-export interface LiveRealm {
-  at: string
-  lastModified?: string
-}
+import { itemIconUrl } from '../lib/data.ts'
+import { TOKEN_COST, costAtGoldPrice, costViaToken, formatMoney, type GoldPrice } from '../lib/money.ts'
 
 interface Props {
   rows: DecodedAuction[]
@@ -23,10 +14,7 @@ interface Props {
   onSort: (key: SortKey) => void
   regionData: RegionData | null
   region: string | null
-  busyRealm: number | null
-  liveRealms: Map<number, LiveRealm>
-  verifyResults: Map<string, VerifyResult>
-  onVerify: (a: DecodedAuction) => void
+  goldPrice: GoldPrice
   onShowMore: () => void
 }
 
@@ -40,21 +28,27 @@ function realmShortLabel(names: string[]): string {
   return `${names[0]} / ${names[1]} +${names.length - 2}`
 }
 
-const COLUMNS: { key: SortKey | null; label: string }[] = [
-  { key: 'item', label: 'Item' },
-  { key: 'ilvl', label: 'iLvl' },
-  { key: null, label: 'Secondaries' },
-  { key: null, label: 'Extras' },
-  { key: 'buyout', label: 'Buyout' },
-  { key: 'realm', label: 'Realm' },
-  { key: 'timeLeft', label: 'Time left' },
-  { key: null, label: 'Verify' },
-]
-
-export function ResultsTable({ rows, total, sort, onSort, regionData, region, busyRealm, liveRealms, verifyResults, onVerify, onShowMore }: Props) {
+export function ResultsTable({ rows, total, sort, onSort, regionData, region, goldPrice, onShowMore }: Props) {
   useEffect(() => {
     window.$WowheadPower?.refreshLinks?.()
   }, [rows])
+
+  const tokenCost = region ? TOKEN_COST[region] : undefined
+  const tokenPrice = regionData?.tokenPrice
+  const rateLabel = goldPrice.perMillion !== null ? `${formatMoney(goldPrice.perMillion, goldPrice.currency)} / 1M` : 'set your gold price'
+  const tokenLabel = tokenCost && tokenPrice ? `${formatMoney(tokenCost.amount, tokenCost.currency)} = ${formatGold(tokenPrice)}` : 'token price unknown'
+
+  const columns: { key: SortKey | null; label: string; sub?: string; title?: string }[] = [
+    { key: 'item', label: 'Item' },
+    { key: 'ilvl', label: 'iLvl' },
+    { key: null, label: 'Secondaries' },
+    { key: null, label: 'Extras' },
+    { key: 'buyout', label: 'Buyout' },
+    { key: null, label: 'Your rate', sub: rateLabel, title: 'Buyout × the gold price you entered in the header' },
+    { key: null, label: 'Via token', sub: tokenLabel, title: tokenCost ? `Buyout ÷ current WoW Token price × ${tokenCost.note}` : undefined },
+    { key: 'realm', label: 'Realm' },
+    { key: 'timeLeft', label: 'Time left' },
+  ]
 
   if (rows.length === 0) {
     return (
@@ -69,10 +63,11 @@ export function ResultsTable({ rows, total, sort, onSort, regionData, region, bu
       <table className="results">
         <thead>
           <tr>
-            {COLUMNS.map((c) => (
-              <th key={c.label} className={c.key ? 'sortable' : ''} onClick={c.key ? () => onSort(c.key as SortKey) : undefined}>
+            {columns.map((c) => (
+              <th key={c.label} className={c.key ? 'sortable' : ''} onClick={c.key ? () => onSort(c.key as SortKey) : undefined} title={c.title}>
                 {c.label}
                 {c.key && sort.key === c.key && <span className="arrow">{sort.dir === 'asc' ? '▲' : '▼'}</span>}
+                {c.sub && <div className="th-sub">{c.sub}</div>}
               </th>
             ))}
           </tr>
@@ -81,12 +76,11 @@ export function ResultsTable({ rows, total, sort, onSort, regionData, region, bu
           {rows.map((a) => {
             const item = ITEMS.get(a.item)
             const realm = regionData?.realms[String(a.cr)]
-            const live = liveRealms.get(a.cr)
-            const result = verifyResults.get(`${a.cr}:${a.id}`)
-            const busy = busyRealm === a.cr
             const d = a.decoded
+            const atRate = costAtGoldPrice(a.buyout, goldPrice)
+            const viaToken = costViaToken(a.buyout, tokenPrice, region)
             return (
-              <tr key={`${a.cr}:${a.id}`} className={`${live ? 'verified-live' : ''} ${realm?.stale ? 'stale' : ''}`}>
+              <tr key={`${a.cr}:${a.id}`} className={realm?.stale ? 'stale' : ''}>
                 <td>
                   <div className="item-cell">
                     <img src={itemIconUrl(a.item)} alt="" loading="lazy" />
@@ -139,6 +133,8 @@ export function ResultsTable({ rows, total, sort, onSort, regionData, region, bu
                 <td className="price" title={formatCopperExact(a.buyout)}>
                   {formatGold(a.buyout)}
                 </td>
+                <td className="money rate">{atRate !== null ? formatMoney(atRate, goldPrice.currency) : <span className="faint" title="Enter your gold price in the header">—</span>}</td>
+                <td className="money token">{viaToken !== null && tokenCost ? formatMoney(viaToken, tokenCost.currency) : <span className="faint">—</span>}</td>
                 <td title={realm?.names.join(' / ')}>
                   {realm ? realmShortLabel(realm.names) : `Realm ${a.cr}`}
                   {realm?.stale && (
@@ -149,23 +145,6 @@ export function ResultsTable({ rows, total, sort, onSort, regionData, region, bu
                 </td>
                 <td>
                   <span className={`time-left ${a.tl ?? ''}`}>{a.tl ? TIME_LEFT_LABEL[a.tl] ?? a.tl : '—'}</span>
-                </td>
-                <td>
-                  <div className="verify-cell">
-                    {busy ? (
-                      <>
-                        <span className="spinner" /> <span className="muted">checking realm…</span>
-                      </>
-                    ) : (
-                      <>
-                        <button className="btn small" onClick={() => onVerify(a)} title="Re-download this realm's auction house from Blizzard now">
-                          {live ? 'Re-check' : 'Verify'}
-                        </button>
-                        {result?.ok && <span className="ok">✓ listed {formatRelative(result.at)}</span>}
-                        {!result && live && <span className="faint">live {formatRelative(live.at)}</span>}
-                      </>
-                    )}
-                  </div>
                 </td>
               </tr>
             )

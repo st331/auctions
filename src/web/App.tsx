@@ -1,25 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { extractSeasonAuctions } from '../shared/blizzard.ts'
 import type { CompactBonusTable } from '../shared/bonuses.ts'
 import { formatGold } from '../shared/decode.ts'
 import { DEFAULT_FILTERS, applyFilters, sortAuctions, type DecodedAuction, type Filters, type SortKey } from '../shared/filters.ts'
-import { CURRENT_SEASON, seasonItemIds, seasonItems, seasonTrackLevels, type DifficultyKey } from '../shared/season.ts'
+import { CURRENT_SEASON, seasonItems, seasonTrackLevels, type DifficultyKey } from '../shared/season.ts'
 import type { DataIndex, RegionData } from '../shared/types.ts'
 import { FiltersPanel } from './components/FiltersPanel.tsx'
 import { Header } from './components/Header.tsx'
-import { ResultsTable, type LiveRealm, type VerifyResult } from './components/ResultsTable.tsx'
-import { SettingsDialog } from './components/SettingsDialog.tsx'
-import { VerifyError, clearCredentials, fetchRealmAuctions, loadCredentials, saveCredentials, type Credentials } from './lib/blizzardClient.ts'
+import { ResultsTable } from './components/ResultsTable.tsx'
 import { decodeAuctions, formatRelative, formatTime, itemIconUrl, itemName, loadBonusTable, loadIndex, loadRegion, realmLabel } from './lib/data.ts'
+import { TOKEN_COST, formatMoney, loadGoldPrice, saveGoldPrice, tokenRatePerMillion, type GoldPrice } from './lib/money.ts'
 import { DEFAULT_SORT, loadInitialState, persistState, type ViewState } from './state/filters.ts'
 
 const PAGE_SIZE = 50
-const ITEM_IDS = seasonItemIds(CURRENT_SEASON)
-
-interface Banner {
-  tone: 'ok' | 'bad' | 'warn'
-  text: string
-}
 
 export function App() {
   const [view, setView] = useState<ViewState>(() => loadInitialState())
@@ -30,14 +22,8 @@ export function App() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const [goldPrice, setGoldPrice] = useState<GoldPrice>(() => loadGoldPrice())
 
-  const [credentials, setCredentials] = useState<Credentials | null>(() => loadCredentials())
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settingsHint, setSettingsHint] = useState<string | null>(null)
-  const [busyRealm, setBusyRealm] = useState<number | null>(null)
-  const [liveRealms, setLiveRealms] = useState<Map<number, LiveRealm>>(new Map())
-  const [verifyResults, setVerifyResults] = useState<Map<string, VerifyResult>>(new Map())
-  const [banner, setBanner] = useState<Banner | null>(null)
   /** Incremented when a newer scan is detected; forces the region data to reload. */
   const [dataVersion, setDataVersion] = useState(0)
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
@@ -89,8 +75,6 @@ export function App() {
           return data
         })
         setAuctions(decodeAuctions(data.auctions, bonusTable))
-        setLiveRealms(new Map())
-        setVerifyResults(new Map())
         setLoadError(null)
       } catch (err) {
         if (!cancelled) setLoadError(err instanceof Error ? err.message : String(err))
@@ -149,6 +133,10 @@ export function App() {
       })),
     [],
   )
+  const onGoldPrice = useCallback((price: GoldPrice) => {
+    setGoldPrice(price)
+    saveGoldPrice(price)
+  }, [])
 
   const filtered = useMemo(() => applyFilters(auctions, view.filters), [auctions, view.filters])
   const sorted = useMemo(
@@ -188,67 +176,27 @@ export function App() {
     return m
   }, [filtered])
 
-  // ---- real-time verification
-  const verify = useCallback(
-    async (a: DecodedAuction) => {
-      if (!view.region || !bonusTable) return
-      const creds = loadCredentials()
-      if (!creds) {
-        setSettingsHint('Enter your Blizzard API client to verify listings in real time.')
-        setSettingsOpen(true)
-        return
-      }
-      setBusyRealm(a.cr)
-      setBanner(null)
-      try {
-        const snapshot = await fetchRealmAuctions(view.region, a.cr, creds)
-        const fresh = decodeAuctions(extractSeasonAuctions(snapshot.response, a.cr, ITEM_IDS), bonusTable)
-        const stillThere = fresh.some((x) => x.id === a.id)
-        const at = snapshot.fetchedAt.toISOString()
-        setAuctions((prev) => [...prev.filter((x) => x.cr !== a.cr), ...fresh])
-        setLiveRealms((prev) => new Map(prev).set(a.cr, { at, lastModified: snapshot.lastModified }))
-        setVerifyResults((prev) => {
-          const next = new Map<string, VerifyResult>()
-          for (const [k, v] of prev) if (!k.startsWith(`${a.cr}:`)) next.set(k, v)
-          if (stillThere) next.set(`${a.cr}:${a.id}`, { ok: true, at })
-          return next
-        })
-        const realm = realmLabel(regionData, a.cr)
-        const snap = snapshot.lastModified ? ` Blizzard's snapshot for this realm is from ${formatTime(new Date(snapshot.lastModified).toISOString())}.` : ''
-        setBanner(
-          stillThere
-            ? { tone: 'ok', text: `${itemName(a.item)} for ${formatGold(a.buyout)} is still listed on ${realm}. All ${fresh.length} season BoE listings on this realm were refreshed.${snap}` }
-            : { tone: 'bad', text: `${itemName(a.item)} for ${formatGold(a.buyout)} is no longer listed on ${realm} (sold, cancelled or expired) and has been removed. ${fresh.length} current listings on this realm were loaded instead.${snap}` },
-        )
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        setBanner({ tone: 'bad', text: `Verification failed: ${msg}` })
-        if (err instanceof VerifyError && err.kind === 'credentials') {
-          setSettingsHint(msg)
-          setSettingsOpen(true)
-        }
-      } finally {
-        setBusyRealm(null)
-      }
-    },
-    [view.region, bonusTable, regionData],
-  )
-
   const staleRealms = useMemo(() => Object.values(regionData?.realms ?? {}).filter((r) => r.stale).length, [regionData])
+  const tokenRate = tokenRatePerMillion(regionData?.tokenPrice, view.region)
+  const tokenCost = view.region ? TOKEN_COST[view.region] : undefined
+
+  const header = (
+    <Header
+      index={index}
+      regionData={regionData}
+      region={view.region}
+      onRegion={(region) => setView((v) => ({ ...v, region, filters: { ...v.filters, realms: null } }))}
+      onRefresh={() => void checkForUpdates()}
+      refreshing={refreshing || loading}
+      goldPrice={goldPrice}
+      onGoldPrice={onGoldPrice}
+    />
+  )
 
   if (loadError && !regionData) {
     return (
       <div className="app">
-        <Header
-          index={index}
-          regionData={null}
-          region={view.region}
-          onRegion={() => {}}
-          hasCredentials={!!credentials}
-          onOpenSettings={() => setSettingsOpen(true)}
-          onRefresh={() => void checkForUpdates()}
-          refreshing={refreshing}
-        />
+        {header}
         <div className="banner bad">
           <div>
             <strong>Could not load auction data.</strong> {loadError}
@@ -258,26 +206,13 @@ export function App() {
             </div>
           </div>
         </div>
-        <SettingsDialog open={settingsOpen} credentials={credentials} hint={settingsHint} onSave={(c) => { saveCredentials(c); setCredentials(c); setSettingsOpen(false) }} onClear={() => { clearCredentials(); setCredentials(null) }} onClose={() => setSettingsOpen(false)} />
       </div>
     )
   }
 
   return (
     <div className="app">
-      <Header
-        index={index}
-        regionData={regionData}
-        region={view.region}
-        onRegion={(region) => setView((v) => ({ ...v, region, filters: { ...v.filters, realms: null } }))}
-        hasCredentials={!!credentials}
-        onOpenSettings={() => {
-          setSettingsHint(null)
-          setSettingsOpen(true)
-        }}
-        onRefresh={() => void checkForUpdates()}
-        refreshing={refreshing || loading}
-      />
+      {header}
 
       {loading && !regionData ? (
         <div className="loading">
@@ -295,15 +230,6 @@ export function App() {
             levelsByDifficulty={levelsByDifficulty}
           />
           <main>
-            {banner && (
-              <div className={`banner ${banner.tone}`}>
-                <span>{banner.tone === 'ok' ? '✓' : banner.tone === 'bad' ? '✗' : '⚠'}</span>
-                <span>{banner.text}</span>
-                <button className="close" onClick={() => setBanner(null)} aria-label="Dismiss">
-                  ×
-                </button>
-              </div>
-            )}
             {updatedAt && (
               <div className="banner ok">
                 <span>↻</span>
@@ -344,6 +270,25 @@ export function App() {
               </span>
               {loading && <span className="spinner" />}
             </div>
+            <div className="rates">
+              <span title="Buyout × your gold price">
+                Your rate: {goldPrice.perMillion !== null ? <strong>{formatMoney(goldPrice.perMillion, goldPrice.currency)} per 1M gold</strong> : <span className="faint">not set (enter it in the header)</span>}
+              </span>
+              <span title={tokenCost ? `WoW Token: ${tokenCost.note}` : undefined}>
+                Via token:{' '}
+                {tokenRate && regionData?.tokenPrice && tokenCost ? (
+                  <>
+                    <strong>{formatMoney(tokenRate.amount, tokenRate.currency)} per 1M gold</strong>
+                    <span className="faint">
+                      {' '}
+                      (token sells for {formatGold(regionData.tokenPrice)}, costs {formatMoney(tokenCost.amount, tokenCost.currency)})
+                    </span>
+                  </>
+                ) : (
+                  <span className="faint">token price unavailable</span>
+                )}
+              </span>
+            </div>
 
             <div className="summary">
               {seasonItems(CURRENT_SEASON)
@@ -374,38 +319,19 @@ export function App() {
               onSort={onSort}
               regionData={regionData}
               region={view.region}
-              busyRealm={busyRealm}
-              liveRealms={liveRealms}
-              verifyResults={verifyResults}
-              onVerify={verify}
+              goldPrice={goldPrice}
               onShowMore={() => setVisibleCount((c) => c + PAGE_SIZE * 2)}
             />
 
             <div className="footer">
-              Prices are buyouts from Blizzard's auction house snapshots, which update roughly hourly per realm; the scan runs every 30 minutes. Hover an item name for
-              the Wowhead tooltip of that exact variant. Gold is warband-wide, so a level 1 character on the listing's realm can buy the item and mail it through the
-              warband bank. Not affiliated with Blizzard Entertainment.
+              Prices are buyouts from Blizzard's auction house snapshots, which update roughly hourly per realm; the scan runs every 10 minutes and the page reloads
+              newer data on its own. Click an item to open it on Undermine Exchange for that realm; hover for the Wowhead tooltip of that exact variant. Gold is
+              warband-wide, so a level 1 character on the listing's realm can buy the item and mail it through the warband bank. Not affiliated with Blizzard
+              Entertainment.
             </div>
           </main>
         </div>
       )}
-
-      <SettingsDialog
-        open={settingsOpen}
-        credentials={credentials}
-        hint={settingsHint}
-        onSave={(c) => {
-          saveCredentials(c)
-          setCredentials(c)
-          setSettingsOpen(false)
-          setSettingsHint(null)
-        }}
-        onClear={() => {
-          clearCredentials()
-          setCredentials(null)
-        }}
-        onClose={() => setSettingsOpen(false)}
-      />
     </div>
   )
 }

@@ -326,6 +326,61 @@ select:focus {
   color: var(--text-faint);
 }
 
+/* ------------------------------------------------------------------ gold price + costs */
+
+.gold-price {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.gold-price select {
+  width: auto;
+  padding: 5px 6px;
+}
+
+.gold-price input {
+  width: 86px;
+  padding: 5px 8px;
+}
+
+.rates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin: -4px 0 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.rates strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+table.results th .th-sub {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+  color: var(--text-faint);
+  font-weight: 400;
+}
+
+td.money {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+td.money.rate {
+  color: var(--green);
+}
+
+td.money.token {
+  color: var(--text-muted);
+}
+
 /* ------------------------------------------------------------------ item picker */
 
 .item-group {
@@ -529,10 +584,6 @@ table.results tbody tr:hover {
   background: rgba(139, 92, 246, 0.08);
 }
 
-table.results tr.verified-live {
-  background: rgba(74, 222, 128, 0.06);
-}
-
 table.results tr.stale td {
   opacity: 0.75;
 }
@@ -652,21 +703,6 @@ td .track {
   color: var(--amber);
 }
 
-.verify-cell {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-}
-
-.verify-cell .ok {
-  color: var(--green);
-}
-
-.verify-cell .bad {
-  color: var(--red);
-}
-
 .pager {
   display: flex;
   justify-content: center;
@@ -716,63 +752,6 @@ td .track {
 
 .banner .close:hover {
   color: var(--text);
-}
-
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-  padding: 16px;
-}
-
-.dialog {
-  background: var(--bg-elev);
-  border: 1px solid var(--border-strong);
-  border-radius: 14px;
-  box-shadow: var(--shadow);
-  width: min(560px, 100%);
-  max-height: calc(100vh - 32px);
-  overflow: auto;
-  padding: 20px 22px;
-}
-
-.dialog h2 {
-  margin: 0 0 6px;
-  font-size: 18px;
-}
-
-.dialog p {
-  color: var(--text-muted);
-  margin: 6px 0 12px;
-}
-
-.dialog ol {
-  color: var(--text-muted);
-  padding-left: 20px;
-  margin: 6px 0 12px;
-}
-
-.dialog .actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 16px;
-  flex-wrap: wrap;
-}
-
-.dialog .actions .spacer {
-  flex: 1;
-}
-
-.msg-ok {
-  color: var(--green);
-}
-
-.msg-bad {
-  color: var(--red);
 }
 
 .loading {
