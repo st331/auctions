@@ -81,9 +81,13 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Always build the branch's current tip: a chained run is created up to 10 minutes before it
+      # runs, and its pinned commit would otherwise redeploy code older than a push in between.
       - name: Check out
         if: steps.config.outputs.configured == 'true'
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref_name }}
 
       - name: Set up Node.js
         if: steps.config.outputs.configured == 'true'
@@ -147,6 +151,15 @@ jobs:
           STARTED: ${{ steps.config.outputs.started }}
           INTERVAL: ${{ vars.SCAN_INTERVAL_SECONDS || '600' }}
         run: |
+          # If another scheduled/dispatched run is already waiting or running, it will continue the
+          # chain; queuing a second successor here would start a parallel chain.
+          pending=$(gh run list --workflow scan-and-deploy.yml --repo "$GITHUB_REPOSITORY" --limit 30 \
+            --json databaseId,status,event \
+            --jq "[.[] | select(.databaseId != $GITHUB_RUN_ID and .event != \"push\" and (.status == \"queued\" or .status == \"in_progress\" or .status == \"waiting\" or .status == \"requested\" or .status == \"pending\"))] | length")
+          if [ "${pending:-0}" -gt 0 ]; then
+            echo "Another scan run is already pending ($pending); not queuing a successor"
+            exit 0
+          fi
           elapsed=$(( $(date +%s) - STARTED ))
           delay=$(( INTERVAL - elapsed ))
           [ "$delay" -lt 0 ] && delay=0
