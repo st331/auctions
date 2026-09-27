@@ -62,6 +62,7 @@ export function parseQuery(search: string): Partial<ViewState> {
   }
   const major = Number(q.get('major'))
   if (q.get('major') && SECONDARY_IDS.includes(major)) f.majorStat = major
+  f.notMajorStats = numList(q.get('nmajor'), SECONDARY_IDS).filter((id) => id !== f.majorStat)
   f.tertiaries = numList(q.get('tert'), [...TERTIARY_IDS, 0])
   const realms = numList(q.get('realms'))
   f.realms = realms.length > 0 ? realms : null
@@ -87,6 +88,7 @@ export function toQuery(state: ViewState): string {
   if (f.secondaryMode !== 'any') q.set('mode', f.secondaryMode)
   if (f.excludedSecondaries.length) q.set('xsec', f.excludedSecondaries.join(','))
   if (f.majorStat !== null) q.set('major', String(f.majorStat))
+  if (f.notMajorStats.length) q.set('nmajor', f.notMajorStats.join(','))
   if (f.tertiaries.length) q.set('tert', f.tertiaries.join(','))
   if (f.realms) q.set('realms', f.realms.join(','))
   if (state.sort.key !== DEFAULT_SORT.key || state.sort.dir !== DEFAULT_SORT.dir) q.set('sort', `${state.sort.key}:${state.sort.dir}`)

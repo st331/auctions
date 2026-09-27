@@ -36,6 +36,8 @@ export interface Filters {
   excludedSecondaries: number[]
   /** If set, the item's major (higher-budget) secondary must be this stat. */
   majorStat: number | null
+  /** Stats that must NOT be the item's major secondary (they may be the minor one, or absent). */
+  notMajorStats: number[]
   /** Tertiary stat ids to include (NO_TERTIARY = items without a tertiary); empty = no filter. */
   tertiaries: number[]
   /** Connected realm ids to include; null = all realms. */
@@ -53,6 +55,7 @@ export const DEFAULT_FILTERS: Filters = {
   secondaryMode: 'any',
   excludedSecondaries: [],
   majorStat: null,
+  notMajorStats: [],
   tertiaries: [],
   realms: null,
 }
@@ -86,6 +89,7 @@ export function matchesFilters(a: DecodedAuction, f: Filters): boolean {
 
   if (!matchesSecondaries(d.secondaries, f.secondaries, f.secondaryMode, f.excludedSecondaries)) return false
   if (f.majorStat !== null && d.secondaries[0] !== f.majorStat) return false
+  if (f.notMajorStats.length > 0 && d.secondaries[0] !== undefined && f.notMajorStats.includes(d.secondaries[0])) return false
 
   return true
 }

@@ -938,9 +938,24 @@ code {
 
 .stat-grid {
   display: grid;
-  grid-template-columns: 1fr 52px 52px;
+  grid-template-columns: 1fr 62px 62px;
   align-items: center;
   row-gap: 4px;
+}
+
+.pair {
+  display: inline-flex;
+  justify-content: center;
+  gap: 3px;
+}
+
+.pair.disabled {
+  opacity: 0.35;
+}
+
+.stat-name .mark {
+  color: var(--accent);
+  font-size: 0.7rem;
 }
 
 .stat-grid-head,
@@ -976,9 +991,8 @@ code {
 }
 
 .tri {
-  width: 30px;
-  height: 26px;
-  margin: 0 auto;
+  width: 26px;
+  height: 24px;
   border-radius: var(--r1);
   border: 1px solid var(--line1);
   background: rgba(235, 233, 228, 0.02);
@@ -993,13 +1007,17 @@ code {
   border-color: var(--line2);
 }
 
-.tri.want.on {
+.tri:disabled {
+  cursor: default;
+}
+
+.tri.yes.on {
   background: var(--metal);
   border-color: var(--metal-line);
   color: var(--metal-ink);
 }
 
-.tri.exclude.on {
+.tri.no.on {
   background: rgba(224, 112, 112, 0.12);
   border-color: rgba(224, 112, 112, 0.6);
   color: var(--down);

@@ -74,12 +74,13 @@ From then on a scan runs about every **10 minutes**. Notes:
 * **Item level** – difficulty chips select whole upgrade tracks (LFR = Veteran, Normal = Champion, Heroic = Hero,
   Mythic = Myth) and can be combined; min/max item level gives fine control (upgraded items are decoded to their
   actual item level, e.g. Hero 3/6 = 311).
-* **Secondary stats** – each stat can be *wanted*, *excluded* or ignored:
-  * Wanted stats match by *Any of* ("rings that have crit on them") or *All of* ("rings with crit **and** haste").
-  * Excluded stats must not be on the item ("crit but never versatility").
-  * "Just crit and haste" = want both, then *exclude the rest*.
-  * *Major stat* additionally requires a stat to be the item's **major** secondary (the one with the larger budget; it
-    is listed first in the table). Raid BoEs always carry two secondaries.
+* **Secondary stats** – every stat has two toggle pairs. *Have* ✓/✕ says whether the item must have the stat or must
+  not have it; *Major* ✓/✕ says whether the stat must be, or must not be, the item's **major** secondary (the one with
+  the larger budget, listed first in the table). Raid BoEs always carry two secondaries.
+  * Wanted (Have ✓) stats match by *Any of* ("rings that have crit on them") or *All of* ("rings with crit **and**
+    haste"); "just crit and haste" = want both, then *exclude the rest*.
+  * Have ✕: "crit but never versatility". Major ✓: "crit as the main stat" (only one stat can be it). Major ✕: "neither
+    vers nor haste as the main stat", or with Have ✓ on the same stat, "crit only as the minor stat".
 * **Tertiary** – Leech / Avoidance / Speed / Indestructible, plus *None* for items without one. Multiple selections
   mean "any of these".
 * **Socket**, **Max buyout** (gold), **Realms** (multi-select) and column sorting work as you would expect. Filters are

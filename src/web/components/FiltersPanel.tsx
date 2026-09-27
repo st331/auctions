@@ -157,6 +157,7 @@ export function FiltersPanel({ filters, onChange, onReset, regionData, itemCount
         excluded={filters.excludedSecondaries}
         mode={filters.secondaryMode}
         majorStat={filters.majorStat}
+        notMajor={filters.notMajorStats}
         onChange={(patch) => onChange(patch)}
       />
 

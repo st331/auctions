@@ -113,6 +113,12 @@ describe('matchesFilters', () => {
     expect(all.map((a) => matchesFilters(a, f({ majorStat: CRIT })))).toEqual([true, false, true, false])
     // combination: crit major, haste wanted, vers excluded
     expect(all.map((a) => matchesFilters(a, f({ secondaries: [HASTE], majorStat: CRIT, excludedSecondaries: [VERS] })))).toEqual([true, false, false, false])
+    // "neither vers nor haste as the major stat" (they may still be the minor stat)
+    expect(all.map((a) => matchesFilters(a, f({ notMajorStats: [VERS, HASTE] })))).toEqual([true, false, true, false])
+    // "crit, but only as the minor stat" = want crit + crit not major
+    expect(all.map((a) => matchesFilters(a, f({ secondaries: [CRIT], notMajorStats: [CRIT] })))).toEqual([false, true, false, false])
+    // items with no decoded stats are not excluded by not-major rules
+    expect(matchesFilters(auction({ decoded: { secondaries: [] } }), f({ notMajorStats: [CRIT] }))).toBe(true)
   })
 })
 

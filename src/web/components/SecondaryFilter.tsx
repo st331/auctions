@@ -1,12 +1,21 @@
 import { SECONDARY_STATS, statLabel } from '../../shared/decode.ts'
 import type { SecondaryMode } from '../../shared/filters.ts'
 
+interface Patch {
+  secondaries?: number[]
+  excludedSecondaries?: number[]
+  secondaryMode?: SecondaryMode
+  majorStat?: number | null
+  notMajorStats?: number[]
+}
+
 interface Props {
   wanted: number[]
   excluded: number[]
   mode: SecondaryMode
   majorStat: number | null
-  onChange: (patch: { secondaries?: number[]; excludedSecondaries?: number[]; secondaryMode?: SecondaryMode; majorStat?: number | null }) => void
+  notMajor: number[]
+  onChange: (patch: Patch) => void
 }
 
 function joinNames(ids: number[], word: string): string {
@@ -15,29 +24,61 @@ function joinNames(ids: number[], word: string): string {
   return `${names.slice(0, -1).join(', ')} ${word} ${names[names.length - 1]}`
 }
 
-function describe(wanted: number[], excluded: number[], mode: SecondaryMode, major: number | null): string {
+function describe(wanted: number[], excluded: number[], mode: SecondaryMode, major: number | null, notMajor: number[]): string {
   const parts: string[] = []
   if (wanted.length > 0) parts.push(`with ${joinNames(wanted, mode === 'all' ? 'and' : 'or')}`)
   if (excluded.length > 0) parts.push(`without ${joinNames(excluded, 'or')}`)
-  let text = parts.length === 0 ? 'Any secondary stats.' : `Items ${parts.join(', ')}.`
-  if (major !== null) text += ` ${statLabel(major, true)} must be the major stat.`
-  return text
+  const sentences: string[] = [parts.length === 0 ? 'Any secondary stats.' : `Items ${parts.join(', ')}.`]
+  if (major !== null) sentences.push(`${statLabel(major, true)} must be the major stat.`)
+  if (notMajor.length > 0) sentences.push(`${joinNames(notMajor, 'and')} must not be the major stat.`)
+  return sentences.join(' ')
 }
 
-export function SecondaryFilter({ wanted, excluded, mode, majorStat, onChange }: Props) {
-  const toggleWant = (id: number) =>
-    onChange({
-      secondaries: wanted.includes(id) ? wanted.filter((s) => s !== id) : [...wanted, id],
-      excludedSecondaries: excluded.filter((s) => s !== id),
-    })
-  const toggleExclude = (id: number) =>
-    onChange({
-      excludedSecondaries: excluded.includes(id) ? excluded.filter((s) => s !== id) : [...excluded, id],
-      secondaries: wanted.filter((s) => s !== id),
-      majorStat: majorStat === id && !excluded.includes(id) ? null : majorStat,
-    })
-  const excludeRest = () => onChange({ excludedSecondaries: SECONDARY_STATS.map((s) => s.id).filter((id) => !wanted.includes(id)), secondaryMode: 'all' })
-  const active = wanted.length > 0 || excluded.length > 0 || majorStat !== null
+/** A pair of single-click toggles: ✓ (yes) and ✕ (no); clicking the active one clears it. */
+function Pair({ value, onSet, yesTitle, noTitle, disabled }: { value: 'yes' | 'no' | null; onSet: (v: 'yes' | 'no' | null) => void; yesTitle: string; noTitle: string; disabled?: boolean }) {
+  return (
+    <span className={`pair ${disabled ? 'disabled' : ''}`} role="group">
+      <button className={`tri yes ${value === 'yes' ? 'on' : ''}`} aria-pressed={value === 'yes'} title={yesTitle} disabled={disabled} onClick={() => onSet(value === 'yes' ? null : 'yes')}>
+        ✓
+      </button>
+      <button className={`tri no ${value === 'no' ? 'on' : ''}`} aria-pressed={value === 'no'} title={noTitle} disabled={disabled} onClick={() => onSet(value === 'no' ? null : 'no')}>
+        ✕
+      </button>
+    </span>
+  )
+}
+
+export function SecondaryFilter({ wanted, excluded, mode, majorStat, notMajor, onChange }: Props) {
+  const without = (list: number[], id: number) => list.filter((s) => s !== id)
+
+  const setHave = (id: number, v: 'yes' | 'no' | null) => {
+    const patch: Patch = { secondaries: without(wanted, id), excludedSecondaries: without(excluded, id) }
+    if (v === 'yes') patch.secondaries = [...patch.secondaries!, id]
+    if (v === 'no') {
+      // An excluded stat is never on the item, so any major rule for it is moot.
+      patch.excludedSecondaries = [...patch.excludedSecondaries!, id]
+      if (majorStat === id) patch.majorStat = null
+      patch.notMajorStats = without(notMajor, id)
+    }
+    onChange(patch)
+  }
+
+  const setMajor = (id: number, v: 'yes' | 'no' | null) => {
+    const patch: Patch = { notMajorStats: without(notMajor, id) }
+    if (majorStat === id) patch.majorStat = null
+    if (v === 'yes') {
+      // Only one stat can be the major one; being the major stat implies the item has it.
+      patch.majorStat = id
+      patch.excludedSecondaries = without(excluded, id)
+      if (!wanted.includes(id)) patch.secondaries = [...wanted, id]
+    }
+    if (v === 'no') patch.notMajorStats = [...patch.notMajorStats!, id]
+    onChange(patch)
+  }
+
+  const excludeRest = () =>
+    onChange({ excludedSecondaries: SECONDARY_STATS.map((s) => s.id).filter((id) => !wanted.includes(id)), secondaryMode: 'all', notMajorStats: notMajor.filter((id) => wanted.includes(id)) })
+  const active = wanted.length > 0 || excluded.length > 0 || majorStat !== null || notMajor.length > 0
 
   return (
     <div className="card">
@@ -45,7 +86,7 @@ export function SecondaryFilter({ wanted, excluded, mode, majorStat, onChange }:
         Secondary stats
         {active && (
           <span className="right">
-            <button className="link-btn" onClick={() => onChange({ secondaries: [], excludedSecondaries: [], majorStat: null, secondaryMode: 'any' })}>
+            <button className="link-btn" onClick={() => onChange({ secondaries: [], excludedSecondaries: [], majorStat: null, notMajorStats: [], secondaryMode: 'any' })}>
               clear
             </button>
           </span>
@@ -54,27 +95,30 @@ export function SecondaryFilter({ wanted, excluded, mode, majorStat, onChange }:
       <div className="stat-grid" role="table" aria-label="Secondary stat filter">
         <div className="stat-grid-head" role="row">
           <span role="columnheader" />
-          <span role="columnheader" title="The item must have this stat">
-            Want
+          <span role="columnheader" title="✓ the item must have this stat · ✕ the item must not have it">
+            Have
           </span>
-          <span role="columnheader" title="The item must not have this stat">
-            Exclude
+          <span role="columnheader" title="✓ this must be the major (larger) stat · ✕ this must not be the major stat">
+            Major
           </span>
         </div>
         {SECONDARY_STATS.map((s) => {
-          const w = wanted.includes(s.id)
-          const x = excluded.includes(s.id)
+          const have: 'yes' | 'no' | null = wanted.includes(s.id) ? 'yes' : excluded.includes(s.id) ? 'no' : null
+          const major: 'yes' | 'no' | null = majorStat === s.id ? 'yes' : notMajor.includes(s.id) ? 'no' : null
           return (
             <div className="stat-grid-row" role="row" key={s.id}>
-              <span className={`stat-name ${w ? 'want' : x ? 'exclude' : ''}`} role="cell">
+              <span className={`stat-name ${have === 'yes' ? 'want' : have === 'no' ? 'exclude' : ''}`} role="cell">
                 {s.label}
+                {major === 'yes' && <span className="mark" title="must be the major stat"> ★</span>}
               </span>
-              <button className={`tri want ${w ? 'on' : ''}`} aria-pressed={w} onClick={() => toggleWant(s.id)} title={`Want ${s.label}`}>
-                {w ? '✓' : ''}
-              </button>
-              <button className={`tri exclude ${x ? 'on' : ''}`} aria-pressed={x} onClick={() => toggleExclude(s.id)} title={`Exclude ${s.label}`}>
-                {x ? '✕' : ''}
-              </button>
+              <Pair value={have} onSet={(v) => setHave(s.id, v)} yesTitle={`Must have ${s.label}`} noTitle={`Must not have ${s.label}`} />
+              <Pair
+                value={major}
+                onSet={(v) => setMajor(s.id, v)}
+                yesTitle={`${s.label} must be the major stat`}
+                noTitle={`${s.label} must not be the major stat`}
+                disabled={have === 'no'}
+              />
             </div>
           )
         })}
@@ -97,20 +141,7 @@ export function SecondaryFilter({ wanted, excluded, mode, majorStat, onChange }:
           </button>
         )}
       </div>
-      <div className="row" style={{ marginTop: 8 }}>
-        <span className="lgl" style={{ whiteSpace: 'nowrap' }}>
-          Major stat
-        </span>
-        <select value={majorStat ?? ''} onChange={(e) => onChange({ majorStat: e.target.value ? Number(e.target.value) : null })}>
-          <option value="">Any</option>
-          {SECONDARY_STATS.filter((s) => !excluded.includes(s.id)).map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <p className="hint">{describe(wanted, excluded, mode, majorStat)}</p>
+      <p className="hint">{describe(wanted, excluded, mode, majorStat, notMajor)}</p>
     </div>
   )
 }
